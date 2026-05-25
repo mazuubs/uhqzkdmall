@@ -1180,40 +1180,67 @@ class BotConfigBioModal(discord.ui.Modal, title="📝 Changer la bio"):
         await interaction.followup.send(msg, ephemeral=True)
 
 class BotConfigView(discord.ui.View):
-    def __init__(self): super().__init__(timeout=120)
+    def __init__(self): super().__init__(timeout=None)
 
-    @discord.ui.button(label="✏️ Nom", style=discord.ButtonStyle.primary)
+    @discord.ui.button(label="✏️ Nom", style=discord.ButtonStyle.primary, custom_id="bc_name")
     async def change_name(self, interaction, _):
+        if interaction.user.id != OWNER_ID: return await interaction.response.send_message("❌", ephemeral=True)
         await interaction.response.send_modal(BotConfigNameModal())
 
-    @discord.ui.button(label="🎮 Statut", style=discord.ButtonStyle.primary)
+    @discord.ui.button(label="🎮 Statut", style=discord.ButtonStyle.primary, custom_id="bc_status")
     async def change_status(self, interaction, _):
+        if interaction.user.id != OWNER_ID: return await interaction.response.send_message("❌", ephemeral=True)
         await interaction.response.send_modal(BotConfigStatusModal())
 
-    @discord.ui.button(label="🖼️ Photo de profil", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="🖼️ Photo de profil", style=discord.ButtonStyle.secondary, custom_id="bc_avatar")
     async def change_avatar(self, interaction, _):
+        if interaction.user.id != OWNER_ID: return await interaction.response.send_message("❌", ephemeral=True)
         await interaction.response.send_modal(BotConfigAvatarModal())
 
-    @discord.ui.button(label="🖼️ Bannière", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="🖼️ Bannière", style=discord.ButtonStyle.secondary, custom_id="bc_banner")
     async def change_banner(self, interaction, _):
+        if interaction.user.id != OWNER_ID: return await interaction.response.send_message("❌", ephemeral=True)
         await interaction.response.send_modal(BotConfigBannerModal())
 
-    @discord.ui.button(label="📝 Bio", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="📝 Bio", style=discord.ButtonStyle.secondary, custom_id="bc_bio")
     async def change_bio(self, interaction, _):
+        if interaction.user.id != OWNER_ID: return await interaction.response.send_message("❌", ephemeral=True)
         await interaction.response.send_modal(BotConfigBioModal())
+
+def build_botconfig_components() -> list:
+    nb = len(config["tokens"])
+    return [
+        {
+            "type": 17, "accent_color": 0x5865F2,
+            "components": [
+                text_component(f"## ⚙️ 〃 BotConfig\n**__Configurez vos bots ci-dessous. S'applique sur les {nb} token(s) ajouté(s).__**"),
+                separator(),
+                text_component("✏️ **Nom** — Change le username de tous les bots\n🎮 **Statut** — Change le statut (supporte le stream Twitch)\n🖼️ **Photo / Bannière** — Change les images de profil\n📝 **Bio** — Change la description de l'application"),
+                separator(),
+                action_row(button("✏️ Nom", BLUE, "bc_name"), button("🎮 Statut", BLUE, "bc_status")),
+                action_row(button("🖼️ Photo de profil", GRAY, "bc_avatar"), button("🖼️ Bannière", GRAY, "bc_banner"), button("📝 Bio", GRAY, "bc_bio")),
+                separator(),
+                text_component("-# UhqZkDmall • Crée par **mazuu.bs**"),
+            ],
+        }
+    ]
 
 @bot.command(name="botconfig")
 async def botconfig_cmd(ctx):
     if ctx.author.id != OWNER_ID: return
-    nb = len(config["tokens"])
-    await ctx.message.delete()
-    await ctx.send(
-        f"## ⚙️ BotConfig — {nb} bot(s) configuré(s)\n"
-        "Toutes les modifications s'appliquent sur **tous les tokens** ajoutés.\n"
-        "-# Pour le statut stream, remplis aussi le champ Twitch.",
-        view=BotConfigView(),
-        delete_after=120,
-    )
+    try:
+        await ctx.message.delete()
+        async with aiohttp.ClientSession(timeout=HTTP_TIMEOUT) as session:
+            async with session.post(
+                f"{DISCORD_API}/channels/{ctx.channel.id}/messages",
+                json={"flags": COMPONENTS_V2, "components": build_botconfig_components()},
+                headers=bot_headers(),
+            ) as r:
+                if r.status >= 400:
+                    data = await r.json()
+                    await ctx.send(f"❌ Erreur : {data}", delete_after=10)
+    except Exception as e:
+        await ctx.send(f"❌ Erreur : {e}", delete_after=10)
 
 
 @bot.command(name="enablev2")
@@ -1245,6 +1272,7 @@ async def on_ready():
         bot.add_view(PanelView())
         bot.add_view(MessageConfigView())
         bot.add_view(DmOptionsView())
+        bot.add_view(BotConfigView())
         VIEWS_READY = True
     print(f"[OK] {bot.user} connecté ({len(bot.guilds)} serveur(s))")
 
