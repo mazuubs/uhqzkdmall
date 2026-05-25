@@ -226,12 +226,35 @@ def build_dm_payload(member):
         p["components"] = [action_row(link_button(config["button_label"], config["button_url"]))]
     return p
 
+def apply_variables_by_id(value, user_id):
+    if value is None: return None
+    mention = f"<@{user_id}>"
+    return (
+        value
+        .replace("{user}", mention)
+        .replace("{user.id}", str(user_id))
+        .replace("{timestamp}", datetime.now().strftime("%d/%m/%Y %H:%M:%S"))
+    )
+
+def build_embed_for_id(user_id):
+    if not config["embed"]: return None
+    ed = json.loads(json.dumps(config["embed"]))
+    for k in ("title", "description", "url"):
+        if k in ed and isinstance(ed[k], str): ed[k] = apply_variables_by_id(ed[k], user_id)
+    for f in ed.get("fields", []):
+        if isinstance(f, dict):
+            for k in ("name", "value"):
+                if k in f and isinstance(f[k], str): f[k] = apply_variables_by_id(f[k], user_id)
+    return ed
+
 def build_dm_payload_for_id(user_id):
     m = get_member_from_id(user_id)
     if m: return build_dm_payload(m)
     p = {}
-    if config["message"]: p["content"] = config["message"]
-    if config["embed"]: p["embeds"] = [config["embed"]]
+    c = apply_variables_by_id(config["message"], user_id)
+    e = build_embed_for_id(user_id)
+    if c: p["content"] = c
+    if e: p["embeds"] = [e]
     if config["button_label"] and config["button_url"]:
         p["components"] = [action_row(link_button(config["button_label"], config["button_url"]))]
     return p
