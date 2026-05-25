@@ -106,6 +106,8 @@ def build_panel_components() -> list:
     return [{
         "type": 17, "accent_color": 0x5865F2,
         "components": [
+            text_component("## > **Support** : https://discord.gg/fy3Sgy6hGS"),
+            separator(),
             text_component("## `💎` 〃 Configuration du UhqZkDmall\n**__Utilisez les boutons ci-dessous pour configurer votre Dmall.__**"),
             separator(),
             text_component(f"🤖 **Tokens** — {token_text}"),
