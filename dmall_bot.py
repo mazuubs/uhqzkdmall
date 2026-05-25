@@ -1099,14 +1099,10 @@ class BotConfigNameModal(discord.ui.Modal, title="✏️ Changer le nom"):
     name_input = discord.ui.TextInput(label="Nouveau nom du bot", max_length=32)
     async def on_submit(self, interaction):
         await interaction.response.defer(ephemeral=True)
-        if not config["tokens"]:
-            return await interaction.followup.send("❌ Aucun token configuré.", ephemeral=True)
-        results = await asyncio.gather(*[patch_bot_via_token(t, {"username": self.name_input.value.strip()}) for t in config["tokens"]])
-        ok = sum(1 for ok, _ in results if ok)
-        errors = [e for ok, e in results if not ok and e]
-        msg = f"✅ Nom changé sur **{ok}/{len(results)}** bot(s)"
-        if errors: msg += f"\n⚠️ Erreur : `{errors[0]}`"
-        await interaction.followup.send(msg, ephemeral=True)
+        token = os.environ.get("TOKEN", "")
+        ok, err = await patch_bot_via_token(token, {"username": self.name_input.value.strip()})
+        if ok: await interaction.followup.send(f"✅ Nom changé en **{self.name_input.value.strip()}**", ephemeral=True)
+        else: await interaction.followup.send(f"❌ Erreur : `{err}`", ephemeral=True)
 
 class BotConfigStatusModal(discord.ui.Modal, title="🎮 Changer le statut"):
     type_input = discord.ui.TextInput(label="Type", placeholder="joue / regarde / ecoute / stream", max_length=10)
@@ -1116,22 +1112,15 @@ class BotConfigStatusModal(discord.ui.Modal, title="🎮 Changer le statut"):
         t = self.type_input.value.strip().lower()
         name = self.text_input.value.strip()
         twitch = self.twitch_input.value.strip()
-        if not config["tokens"]:
-            return await interaction.response.send_message("❌ Aucun token configuré.", ephemeral=True)
-        await interaction.response.defer(ephemeral=True)
         if t == "stream" and twitch:
-            results = await asyncio.gather(*[set_token_status_streaming(tok, name, twitch) for tok in config["tokens"]])
-            ok = sum(1 for r in results if r)
+            act = discord.Activity(type=discord.ActivityType.streaming, name=name, url=twitch)
         else:
-            act_id = ACTIVITY_TYPE_IDS.get(t)
-            if act_id is None:
-                return await interaction.followup.send("❌ Utilise : joue / regarde / ecoute / stream", ephemeral=True)
-            results = await asyncio.gather(*[set_token_status_via_gateway(tok, act_id, name) for tok in config["tokens"]])
-            ok = sum(1 for r in results if r)
-        fail = len(config["tokens"]) - ok
-        msg = f"✅ Statut **{t} {name}** sur **{ok}/{len(config['tokens'])}** bot(s)"
-        if fail: msg += f"\n⚠️ **{fail}** bot(s) ont échoué"
-        await interaction.followup.send(msg, ephemeral=True)
+            act_type = ACTIVITY_TYPES.get(t)
+            if not act_type:
+                return await interaction.response.send_message("❌ Utilise : joue / regarde / ecoute / stream", ephemeral=True)
+            act = discord.Activity(type=act_type, name=name)
+        await bot.change_presence(activity=act)
+        await interaction.response.send_message(f"✅ Statut : **{t} {name}**", ephemeral=True)
 
 class BotConfigAvatarModal(discord.ui.Modal, title="🖼️ Changer la photo de profil"):
     url_input = discord.ui.TextInput(label="URL de l'image (PNG/JPG/GIF)", max_length=500)
@@ -1140,14 +1129,10 @@ class BotConfigAvatarModal(discord.ui.Modal, title="🖼️ Changer la photo de 
         b64 = await url_to_base64(self.url_input.value.strip())
         if not b64:
             return await interaction.followup.send("❌ Impossible de télécharger l'image.", ephemeral=True)
-        if not config["tokens"]:
-            return await interaction.followup.send("❌ Aucun token configuré.", ephemeral=True)
-        results = await asyncio.gather(*[patch_bot_via_token(t, {"avatar": b64}) for t in config["tokens"]])
-        ok = sum(1 for ok, _ in results if ok)
-        errors = [e for ok, e in results if not ok and e]
-        msg = f"✅ Photo changée sur **{ok}/{len(results)}** bot(s)"
-        if errors: msg += f"\n⚠️ Erreur : `{errors[0]}`"
-        await interaction.followup.send(msg, ephemeral=True)
+        token = os.environ.get("TOKEN", "")
+        ok, err = await patch_bot_via_token(token, {"avatar": b64})
+        if ok: await interaction.followup.send("✅ Photo de profil changée !", ephemeral=True)
+        else: await interaction.followup.send(f"❌ Erreur : `{err}`", ephemeral=True)
 
 class BotConfigBannerModal(discord.ui.Modal, title="🖼️ Changer la bannière"):
     url_input = discord.ui.TextInput(label="URL de la bannière (PNG/JPG/GIF)", max_length=500)
@@ -1156,28 +1141,19 @@ class BotConfigBannerModal(discord.ui.Modal, title="🖼️ Changer la bannière
         b64 = await url_to_base64(self.url_input.value.strip())
         if not b64:
             return await interaction.followup.send("❌ Impossible de télécharger l'image.", ephemeral=True)
-        if not config["tokens"]:
-            return await interaction.followup.send("❌ Aucun token configuré.", ephemeral=True)
-        results = await asyncio.gather(*[patch_bot_via_token(t, {"banner": b64}) for t in config["tokens"]])
-        ok = sum(1 for ok, _ in results if ok)
-        errors = [e for ok, e in results if not ok and e]
-        msg = f"✅ Bannière changée sur **{ok}/{len(results)}** bot(s)"
-        if errors: msg += f"\n⚠️ Erreur : `{errors[0]}`\n-# Note : la bannière nécessite Nitro sur le compte bot."
-        await interaction.followup.send(msg, ephemeral=True)
+        token = os.environ.get("TOKEN", "")
+        ok, err = await patch_bot_via_token(token, {"banner": b64})
+        if ok: await interaction.followup.send("✅ Bannière changée !", ephemeral=True)
+        else: await interaction.followup.send(f"❌ Erreur : `{err}`\n-# Note : la bannière nécessite Nitro sur le compte bot.", ephemeral=True)
 
 class BotConfigBioModal(discord.ui.Modal, title="📝 Changer la bio"):
     bio_input = discord.ui.TextInput(label="Bio / Description", style=discord.TextStyle.paragraph, max_length=400, required=False)
     async def on_submit(self, interaction):
         await interaction.response.defer(ephemeral=True)
-        bio = self.bio_input.value.strip()
-        if not config["tokens"]:
-            return await interaction.followup.send("❌ Aucun token configuré.", ephemeral=True)
-        results = await asyncio.gather(*[patch_app_via_token(t, {"description": bio}) for t in config["tokens"]])
-        ok = sum(1 for ok, _ in results if ok)
-        errors = [e for ok, e in results if not ok and e]
-        msg = f"✅ Bio changée sur **{ok}/{len(results)}** bot(s)"
-        if errors: msg += f"\n⚠️ Erreur : `{errors[0]}`"
-        await interaction.followup.send(msg, ephemeral=True)
+        token = os.environ.get("TOKEN", "")
+        ok, err = await patch_app_via_token(token, {"description": self.bio_input.value.strip()})
+        if ok: await interaction.followup.send("✅ Bio changée !", ephemeral=True)
+        else: await interaction.followup.send(f"❌ Erreur : `{err}`", ephemeral=True)
 
 class BotConfigView(discord.ui.View):
     def __init__(self): super().__init__(timeout=None)
