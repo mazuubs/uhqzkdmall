@@ -40,6 +40,7 @@ ACTIVITY_TYPES = {
     "joue": discord.ActivityType.playing, "regarde": discord.ActivityType.watching,
     "ecoute": discord.ActivityType.listening, "stream": discord.ActivityType.streaming,
 }
+ACTIVITY_TYPE_IDS = {"joue": 0, "regarde": 3, "ecoute": 2, "stream": 1}
 
 PERSIST_KEYS = [
     "tokens", "token_infos", "message", "embed", "button_label", "button_url",
@@ -262,6 +263,37 @@ def build_dm_payload_for_id(user_id):
     if config["button_label"] and config["button_url"]:
         p["components"] = [action_row(link_button(config["button_label"], config["button_url"]))]
     return p
+
+# ─── Statut via Gateway pour les tokens ajoutés ──────────────────────────────
+
+async def set_token_status_via_gateway(token: str, activity_type_id: int, activity_name: str) -> bool:
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"{DISCORD_API}/gateway", headers=bot_headers(token)) as r:
+                if r.status != 200: return False
+                gw_url = (await r.json()).get("url", "wss://gateway.discord.gg") + "/?v=10&encoding=json"
+            async with session.ws_connect(gw_url) as ws:
+                msg = await asyncio.wait_for(ws.receive_json(), timeout=10)
+                if msg.get("op") != 10: return False
+                await ws.send_json({
+                    "op": 2,
+                    "d": {
+                        "token": token,
+                        "intents": 0,
+                        "properties": {"os": "linux", "browser": "disco", "device": "disco"},
+                        "presence": {
+                            "activities": [{"name": activity_name, "type": activity_type_id}],
+                            "status": "online", "since": None, "afk": False,
+                        },
+                    },
+                })
+                for _ in range(5):
+                    msg = await asyncio.wait_for(ws.receive_json(), timeout=10)
+                    if msg.get("op") == 0 and msg.get("t") == "READY": return True
+                    if msg.get("op") == 9: return False
+        return False
+    except Exception:
+        return False
 
 # ─── Envoi DM optimisé avec session partagée + retry 429 ─────────────────────
 
@@ -701,10 +733,18 @@ class StatusModal(discord.ui.Modal, title="🎮 Statut du Bot"):
     text_input = discord.ui.TextInput(label="Texte", max_length=128)
     async def on_submit(self, interaction):
         t = self.type_input.value.strip().lower()
-        act = ACTIVITY_TYPES.get(t)
-        if not act: return await interaction.response.send_message("❌ Utilise : joue / regarde / ecoute / stream", ephemeral=True)
-        await bot.change_presence(activity=discord.Activity(type=act, name=self.text_input.value.strip()))
-        await interaction.response.send_message(f"✅ Statut : **{t} {self.text_input.value.strip()}**", ephemeral=True)
+        act_id = ACTIVITY_TYPE_IDS.get(t)
+        if act_id is None: return await interaction.response.send_message("❌ Utilise : joue / regarde / ecoute / stream", ephemeral=True)
+        name = self.text_input.value.strip()
+        if not config["tokens"]:
+            return await interaction.response.send_message("❌ Aucun token configuré.", ephemeral=True)
+        await interaction.response.defer(ephemeral=True)
+        results = await asyncio.gather(*[set_token_status_via_gateway(token, act_id, name) for token in config["tokens"]])
+        ok = sum(1 for r in results if r)
+        fail = len(results) - ok
+        msg = f"✅ Statut **{t} {name}** appliqué sur **{ok}/{len(results)}** bot(s)"
+        if fail: msg += f"\n⚠️ **{fail}** bot(s) ont échoué (token invalide ou erreur gateway)"
+        await interaction.followup.send(msg, ephemeral=True)
 
 # ─── MessageConfigView ────────────────────────────────────────────────────────
 
@@ -982,6 +1022,198 @@ async def panel_cmd(ctx):
         await ctx.message.delete()
     except Exception as e:
         await ctx.send(f"❌ Erreur : {e}", delete_after=10)
+
+
+# ─── +botconfig ───────────────────────────────────────────────────────────────
+
+async def url_to_base64(url: str) -> str | None:
+    """Télécharge une image depuis une URL et retourne le data URI base64."""
+    try:
+        import base64, mimetypes
+        async with aiohttp.ClientSession(timeout=HTTP_TIMEOUT) as session:
+            async with session.get(url) as r:
+                if r.status != 200: return None
+                ct = r.content_type or "image/png"
+                data = await r.read()
+                b64 = base64.b64encode(data).decode()
+                return f"data:{ct};base64,{b64}"
+    except Exception:
+        return None
+
+async def patch_bot_via_token(token: str, payload: dict) -> tuple[bool, str]:
+    """Modifie le profil du bot via PATCH /users/@me."""
+    try:
+        async with aiohttp.ClientSession(timeout=HTTP_TIMEOUT) as session:
+            async with session.patch(f"{DISCORD_API}/users/@me", json=payload, headers=bot_headers(token)) as r:
+                data = await r.json()
+                if r.status == 200: return True, ""
+                msg = data.get("message", str(data))
+                return False, msg
+    except Exception as e:
+        return False, str(e)
+
+async def patch_app_via_token(token: str, payload: dict) -> tuple[bool, str]:
+    """Modifie l'application du bot via PATCH /applications/@me (bio/description)."""
+    try:
+        async with aiohttp.ClientSession(timeout=HTTP_TIMEOUT) as session:
+            async with session.patch(f"{DISCORD_API}/applications/@me", json=payload, headers=bot_headers(token)) as r:
+                data = await r.json()
+                if r.status == 200: return True, ""
+                return False, data.get("message", str(data))
+    except Exception as e:
+        return False, str(e)
+
+async def set_token_status_streaming(token: str, activity_name: str, twitch_url: str) -> bool:
+    """Définit un statut 'stream' avec lien Twitch via Gateway."""
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"{DISCORD_API}/gateway", headers=bot_headers(token)) as r:
+                if r.status != 200: return False
+                gw_url = (await r.json()).get("url", "wss://gateway.discord.gg") + "/?v=10&encoding=json"
+            async with session.ws_connect(gw_url) as ws:
+                msg = await asyncio.wait_for(ws.receive_json(), timeout=10)
+                if msg.get("op") != 10: return False
+                await ws.send_json({
+                    "op": 2,
+                    "d": {
+                        "token": token,
+                        "intents": 0,
+                        "properties": {"os": "linux", "browser": "disco", "device": "disco"},
+                        "presence": {
+                            "activities": [{"name": activity_name, "type": 1, "url": twitch_url}],
+                            "status": "online", "since": None, "afk": False,
+                        },
+                    },
+                })
+                for _ in range(5):
+                    msg = await asyncio.wait_for(ws.receive_json(), timeout=10)
+                    if msg.get("op") == 0 and msg.get("t") == "READY": return True
+                    if msg.get("op") == 9: return False
+        return False
+    except Exception:
+        return False
+
+# Modals BotConfig
+
+class BotConfigNameModal(discord.ui.Modal, title="✏️ Changer le nom"):
+    name_input = discord.ui.TextInput(label="Nouveau nom du bot", max_length=32)
+    async def on_submit(self, interaction):
+        await interaction.response.defer(ephemeral=True)
+        if not config["tokens"]:
+            return await interaction.followup.send("❌ Aucun token configuré.", ephemeral=True)
+        results = await asyncio.gather(*[patch_bot_via_token(t, {"username": self.name_input.value.strip()}) for t in config["tokens"]])
+        ok = sum(1 for ok, _ in results if ok)
+        errors = [e for ok, e in results if not ok and e]
+        msg = f"✅ Nom changé sur **{ok}/{len(results)}** bot(s)"
+        if errors: msg += f"\n⚠️ Erreur : `{errors[0]}`"
+        await interaction.followup.send(msg, ephemeral=True)
+
+class BotConfigStatusModal(discord.ui.Modal, title="🎮 Changer le statut"):
+    type_input = discord.ui.TextInput(label="Type", placeholder="joue / regarde / ecoute / stream", max_length=10)
+    text_input = discord.ui.TextInput(label="Texte du statut", max_length=128)
+    twitch_input = discord.ui.TextInput(label="Lien Twitch (si type=stream)", placeholder="https://twitch.tv/channel", required=False, max_length=200)
+    async def on_submit(self, interaction):
+        t = self.type_input.value.strip().lower()
+        name = self.text_input.value.strip()
+        twitch = self.twitch_input.value.strip()
+        if not config["tokens"]:
+            return await interaction.response.send_message("❌ Aucun token configuré.", ephemeral=True)
+        await interaction.response.defer(ephemeral=True)
+        if t == "stream" and twitch:
+            results = await asyncio.gather(*[set_token_status_streaming(tok, name, twitch) for tok in config["tokens"]])
+            ok = sum(1 for r in results if r)
+        else:
+            act_id = ACTIVITY_TYPE_IDS.get(t)
+            if act_id is None:
+                return await interaction.followup.send("❌ Utilise : joue / regarde / ecoute / stream", ephemeral=True)
+            results = await asyncio.gather(*[set_token_status_via_gateway(tok, act_id, name) for tok in config["tokens"]])
+            ok = sum(1 for r in results if r)
+        fail = len(config["tokens"]) - ok
+        msg = f"✅ Statut **{t} {name}** sur **{ok}/{len(config['tokens'])}** bot(s)"
+        if fail: msg += f"\n⚠️ **{fail}** bot(s) ont échoué"
+        await interaction.followup.send(msg, ephemeral=True)
+
+class BotConfigAvatarModal(discord.ui.Modal, title="🖼️ Changer la photo de profil"):
+    url_input = discord.ui.TextInput(label="URL de l'image (PNG/JPG/GIF)", max_length=500)
+    async def on_submit(self, interaction):
+        await interaction.response.defer(ephemeral=True)
+        b64 = await url_to_base64(self.url_input.value.strip())
+        if not b64:
+            return await interaction.followup.send("❌ Impossible de télécharger l'image.", ephemeral=True)
+        if not config["tokens"]:
+            return await interaction.followup.send("❌ Aucun token configuré.", ephemeral=True)
+        results = await asyncio.gather(*[patch_bot_via_token(t, {"avatar": b64}) for t in config["tokens"]])
+        ok = sum(1 for ok, _ in results if ok)
+        errors = [e for ok, e in results if not ok and e]
+        msg = f"✅ Photo changée sur **{ok}/{len(results)}** bot(s)"
+        if errors: msg += f"\n⚠️ Erreur : `{errors[0]}`"
+        await interaction.followup.send(msg, ephemeral=True)
+
+class BotConfigBannerModal(discord.ui.Modal, title="🖼️ Changer la bannière"):
+    url_input = discord.ui.TextInput(label="URL de la bannière (PNG/JPG/GIF)", max_length=500)
+    async def on_submit(self, interaction):
+        await interaction.response.defer(ephemeral=True)
+        b64 = await url_to_base64(self.url_input.value.strip())
+        if not b64:
+            return await interaction.followup.send("❌ Impossible de télécharger l'image.", ephemeral=True)
+        if not config["tokens"]:
+            return await interaction.followup.send("❌ Aucun token configuré.", ephemeral=True)
+        results = await asyncio.gather(*[patch_bot_via_token(t, {"banner": b64}) for t in config["tokens"]])
+        ok = sum(1 for ok, _ in results if ok)
+        errors = [e for ok, e in results if not ok and e]
+        msg = f"✅ Bannière changée sur **{ok}/{len(results)}** bot(s)"
+        if errors: msg += f"\n⚠️ Erreur : `{errors[0]}`\n-# Note : la bannière nécessite Nitro sur le compte bot."
+        await interaction.followup.send(msg, ephemeral=True)
+
+class BotConfigBioModal(discord.ui.Modal, title="📝 Changer la bio"):
+    bio_input = discord.ui.TextInput(label="Bio / Description", style=discord.TextStyle.paragraph, max_length=400, required=False)
+    async def on_submit(self, interaction):
+        await interaction.response.defer(ephemeral=True)
+        bio = self.bio_input.value.strip()
+        if not config["tokens"]:
+            return await interaction.followup.send("❌ Aucun token configuré.", ephemeral=True)
+        results = await asyncio.gather(*[patch_app_via_token(t, {"description": bio}) for t in config["tokens"]])
+        ok = sum(1 for ok, _ in results if ok)
+        errors = [e for ok, e in results if not ok and e]
+        msg = f"✅ Bio changée sur **{ok}/{len(results)}** bot(s)"
+        if errors: msg += f"\n⚠️ Erreur : `{errors[0]}`"
+        await interaction.followup.send(msg, ephemeral=True)
+
+class BotConfigView(discord.ui.View):
+    def __init__(self): super().__init__(timeout=120)
+
+    @discord.ui.button(label="✏️ Nom", style=discord.ButtonStyle.primary)
+    async def change_name(self, interaction, _):
+        await interaction.response.send_modal(BotConfigNameModal())
+
+    @discord.ui.button(label="🎮 Statut", style=discord.ButtonStyle.primary)
+    async def change_status(self, interaction, _):
+        await interaction.response.send_modal(BotConfigStatusModal())
+
+    @discord.ui.button(label="🖼️ Photo de profil", style=discord.ButtonStyle.secondary)
+    async def change_avatar(self, interaction, _):
+        await interaction.response.send_modal(BotConfigAvatarModal())
+
+    @discord.ui.button(label="🖼️ Bannière", style=discord.ButtonStyle.secondary)
+    async def change_banner(self, interaction, _):
+        await interaction.response.send_modal(BotConfigBannerModal())
+
+    @discord.ui.button(label="📝 Bio", style=discord.ButtonStyle.secondary)
+    async def change_bio(self, interaction, _):
+        await interaction.response.send_modal(BotConfigBioModal())
+
+@bot.command(name="botconfig")
+async def botconfig_cmd(ctx):
+    if ctx.author.id != OWNER_ID: return
+    nb = len(config["tokens"])
+    await ctx.message.delete()
+    await ctx.send(
+        f"## ⚙️ BotConfig — {nb} bot(s) configuré(s)\n"
+        "Toutes les modifications s'appliquent sur **tous les tokens** ajoutés.\n"
+        "-# Pour le statut stream, remplis aussi le champ Twitch.",
+        view=BotConfigView(),
+        delete_after=120,
+    )
 
 
 @bot.command(name="enablev2")
