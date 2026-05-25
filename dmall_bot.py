@@ -227,6 +227,7 @@ def build_dm_payload(member):
     return p
 
 def apply_variables_by_id(value, user_id):
+    """Applique les variables {user}, {user.id}, {timestamp} sans objet member."""
     if value is None: return None
     mention = f"<@{user_id}>"
     return (
@@ -237,6 +238,7 @@ def apply_variables_by_id(value, user_id):
     )
 
 def build_embed_for_id(user_id):
+    """Construit l'embed en remplaçant les variables via l'ID (quand le membre n'est pas en cache)."""
     if not config["embed"]: return None
     ed = json.loads(json.dumps(config["embed"]))
     for k in ("title", "description", "url"):
@@ -250,6 +252,7 @@ def build_embed_for_id(user_id):
 def build_dm_payload_for_id(user_id):
     m = get_member_from_id(user_id)
     if m: return build_dm_payload(m)
+    # Membre pas en cache — on applique quand même les variables avec l'ID
     p = {}
     c = apply_variables_by_id(config["message"], user_id)
     e = build_embed_for_id(user_id)
@@ -948,6 +951,29 @@ async def panel_cmd(ctx):
     if ctx.author.id != OWNER_ID:
         return
     try:
+        # Supprime l'ancien panel s'il existe
+        if config["panel_message_id"] and config["panel_channel_id"]:
+            async with aiohttp.ClientSession(timeout=HTTP_TIMEOUT) as session:
+                await session.delete(
+                    f"{DISCORD_API}/channels/{config['panel_channel_id']}/messages/{config['panel_message_id']}",
+                    headers=bot_headers(),
+                )
+
+        # Remet tout à zéro
+        config["tokens"] = []
+        config["token_infos"] = []
+        config["message"] = None
+        config["embed"] = None
+        config["button_label"] = None
+        config["button_url"] = None
+        config["ignored_ids"] = []
+        config["target_ids"] = []
+        config["member_count"] = 0
+        config["selected_token_index"] = 0
+        config["panel_message_id"] = None
+        config["panel_channel_id"] = None
+        save_config()
+
         data = await send_panel_v2(ctx.channel.id)
         config["panel_message_id"] = data["id"]
         config["panel_channel_id"] = ctx.channel.id
