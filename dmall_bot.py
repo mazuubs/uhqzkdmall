@@ -135,10 +135,7 @@ def build_message_config_components() -> list:
         text_component(":two: **Embed personnalisé**"),
         action_row(button("📝 Embed JSON", BLUE, "embed_json_btn"), button("🎨 Embed Builder", GRAY, "embed_builder_btn")),
         separator(),
-        text_component(":bulb: **Variables** : 
-        `{user}` → mention du membre
-        `{user.id}` → id du membre
-        `{timestamp}` → date/heure exact"),
+        text_component("**:bulb: Variables :**\n`{user}` → mention du membre\n`{user.id}` → id du membre\n`{timestamp}` → date/heure exact"),
         separator(),
         action_row(button("Aperçu", GRAY, "preview_message_btn"), button("Reset", RED, "reset_message_btn")),
     ]}]
