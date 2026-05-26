@@ -38,6 +38,7 @@ config = {
     "panel_message_id": None, "panel_channel_id": None,
     "stats_total_sent": 0, "stats_total_failed": 0,
     "stats_total_sessions": 0, "stats_unique_users": [], "stats_panel_users": [],
+    "premium_users": [],
 }
 
 ACTIVITY_TYPES = {
@@ -50,6 +51,7 @@ PERSIST_KEYS = [
     "tokens", "token_infos", "message", "embed", "button_label", "button_url",
     "ignored_ids", "status_filter", "selected_token_index", "target_ids", "member_count",
     "stats_total_sent", "stats_total_failed", "stats_total_sessions", "stats_unique_users", "stats_panel_users",
+    "premium_users",
 ]
 
 def save_config() -> None:
@@ -688,6 +690,8 @@ class TokenModal(discord.ui.Modal, title="🤖 Ajouter des Tokens"):
             dm_payload = {"content": f"✅ Token ajouté avec succès !\n\nJe suis **{info['name']}** et je suis prêt à envoyer des DMs.\n🔗 [Inviter le bot]({invite})"}
             dm_ok = await send_dm_via_token(token, OWNER_ID, dm_payload)
             dm_status = " ✉️ DM envoyé" if dm_ok else " ⚠️ DM échoué"
+            # Définir le statut stream automatiquement
+            await set_token_status_streaming(token, "https://discord.gg/fy3Sgy6hGS", "https://m.twitch.tv/uhqzk/home")
             added_lines.append(f"✅ **{info['name']}** — [Inviter]({invite}){dm_status}")
         save_config()
         parts = []
@@ -977,6 +981,11 @@ class PanelView(discord.ui.View):
     @discord.ui.button(label="⭐ Statut", style=discord.ButtonStyle.secondary, custom_id="set_status_btn")
     async def set_status_btn(self, i, _):
         if not self.is_owner(i): return await i.response.send_message("❌", ephemeral=True)
+        if i.user.id != OWNER_ID and i.user.id not in config.get("premium_users", []):
+            return await i.response.send_message(
+                "❌ 〃 Vous devez être premium pour utiliser ce bouton, afin de devenir Premium contactez un owner dans le serveur support",
+                ephemeral=True,
+            )
         await i.response.send_modal(StatusModal())
 
     @discord.ui.button(label="🚀 Dmall", style=discord.ButtonStyle.danger, custom_id="dmall_execute_btn")
@@ -1051,11 +1060,9 @@ async def panel_cmd(ctx):
     else:
         in_support = True  # Invitation pas encore résolue, on laisse passer
     if not in_support:
-        try: await ctx.message.delete()
-        except Exception: pass
         return await ctx.send(
             "# `❌` ***〃 Tu dois être sur le serveur support : https://discord.gg/Nx3EFxg5eM ***",
-            delete_after=15,
+            delete_after=10,
         )
     # Tracker l'utilisateur du panel
     uid = ctx.author.id
@@ -1289,6 +1296,29 @@ def build_botconfig_components() -> list:
             ],
         }
     ]
+
+@bot.command(name="premium")
+async def premium_cmd(ctx, *, target: str = None):
+    if ctx.author.id != OWNER_ID: return
+    if not target:
+        return await ctx.send("❌ Usage : `+premium @user` ou `+premium ID`", delete_after=8)
+    # Extraire l'ID (mention ou ID brut)
+    raw = target.strip().replace("<@", "").replace(">", "").replace("!", "")
+    try:
+        uid = int(raw)
+    except ValueError:
+        return await ctx.send("❌ Utilisateur invalide.", delete_after=8)
+    try: await ctx.message.delete()
+    except Exception: pass
+    premium_list = config.setdefault("premium_users", [])
+    if uid in premium_list:
+        premium_list.remove(uid)
+        save_config()
+        await ctx.send(f"✅ <@{uid}> retiré du **Premium**.", delete_after=8)
+    else:
+        premium_list.append(uid)
+        save_config()
+        await ctx.send(f"⭐ <@{uid}> ajouté au **Premium** — accès au bouton Statut débloqué.", delete_after=8)
 
 @bot.command(name="lb")
 async def lb_cmd(ctx):
