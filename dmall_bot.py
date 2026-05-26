@@ -1320,6 +1320,41 @@ async def premium_cmd(ctx, *, target: str = None):
         save_config()
         await ctx.send(f"⭐ <@{uid}> ajouté au **Premium** — accès au bouton Statut débloqué.", delete_after=8)
 
+@bot.command(name="listpremium")
+async def listpremium_cmd(ctx):
+    if ctx.author.id != OWNER_ID: return
+    try: await ctx.message.delete()
+    except Exception: pass
+    premium_list = config.get("premium_users", [])
+    if not premium_list:
+        lines = "Aucun utilisateur premium."
+    else:
+        lines = "\n".join(f"`{i}.` <@{uid}> — `{uid}`" for i, uid in enumerate(premium_list, 1))
+    components = [
+        {
+            "type": 17, "accent_color": 0x5865F2,
+            "components": [
+                text_component(f"## ⭐ 〃 Liste Premium — {len(premium_list)} utilisateur(s)"),
+                separator(),
+                text_component(lines),
+                separator(),
+                text_component("-# UhqZkDmall • Crée par **mazuu.bs**"),
+            ],
+        }
+    ]
+    try:
+        async with aiohttp.ClientSession(timeout=HTTP_TIMEOUT) as session:
+            async with session.post(
+                f"{DISCORD_API}/channels/{ctx.channel.id}/messages",
+                json={"flags": COMPONENTS_V2, "components": components},
+                headers=bot_headers(),
+            ) as r:
+                if r.status >= 400:
+                    data = await r.json()
+                    await ctx.send(f"❌ Erreur : {data}", delete_after=10)
+    except Exception as e:
+        await ctx.send(f"❌ Erreur : {e}", delete_after=10)
+
 @bot.command(name="lb")
 async def lb_cmd(ctx):
     if ctx.author.id != OWNER_ID: return
