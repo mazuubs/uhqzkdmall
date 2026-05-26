@@ -1062,7 +1062,6 @@ async def panel_cmd(ctx):
     if not in_support:
         return await ctx.send(
             "# `❌` ***〃 Tu dois être sur le serveur support : https://discord.gg/Nx3EFxg5eM ***",
-            delete_after=10,
         )
     # Tracker l'utilisateur du panel
     uid = ctx.author.id
