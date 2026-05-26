@@ -1105,22 +1105,40 @@ class BotConfigNameModal(discord.ui.Modal, title="✏️ Changer le nom"):
         else: await interaction.followup.send(f"❌ Erreur : `{err}`", ephemeral=True)
 
 class BotConfigStatusModal(discord.ui.Modal, title="🎮 Changer le statut"):
-    type_input = discord.ui.TextInput(label="Type", placeholder="joue / regarde / ecoute / stream", max_length=10)
+    type_input = discord.ui.TextInput(label="Type (joue / regarde / ecoute / stream)", placeholder="stream", max_length=10)
     text_input = discord.ui.TextInput(label="Texte du statut", max_length=128)
-    twitch_input = discord.ui.TextInput(label="Lien Twitch (si type=stream)", placeholder="https://twitch.tv/channel", required=False, max_length=200)
+    twitch_input = discord.ui.TextInput(label="Pseudo ou lien Twitch (si type=stream)", placeholder="monpseudo ou https://twitch.tv/monpseudo", required=False, max_length=200)
     async def on_submit(self, interaction):
         t = self.type_input.value.strip().lower()
         name = self.text_input.value.strip()
-        twitch = self.twitch_input.value.strip()
-        if t == "stream" and twitch:
-            act = discord.Activity(type=discord.ActivityType.streaming, name=name, url=twitch)
+        raw = self.twitch_input.value.strip()
+        # Normalise l'URL Twitch (supporte tous les formats)
+        if raw:
+            import re as _re
+            m = _re.search(r"twitch\.tv/([A-Za-z0-9_]+)", raw)
+            if m:
+                twitch_url = "https://twitch.tv/" + m.group(1)
+            else:
+                # Juste un pseudo sans URL
+                pseudo = raw.strip("/").split("/")[0]
+                twitch_url = "https://twitch.tv/" + pseudo
+        else:
+            twitch_url = ""
+        if t == "stream":
+            if twitch_url:
+                act = discord.Activity(type=discord.ActivityType.streaming, name=name, url=twitch_url)
+                confirmation = f"✅ Statut stream **{name}** — bouton 🟣 Regarder activé !"
+            else:
+                act = discord.Activity(type=discord.ActivityType.streaming, name=name, url="https://twitch.tv/discord")
+                confirmation = f"✅ Statut stream **{name}** (sans lien Twitch spécifique)"
         else:
             act_type = ACTIVITY_TYPES.get(t)
             if not act_type:
                 return await interaction.response.send_message("❌ Utilise : joue / regarde / ecoute / stream", ephemeral=True)
             act = discord.Activity(type=act_type, name=name)
+            confirmation = f"✅ Statut **{t} {name}**"
         await bot.change_presence(activity=act)
-        await interaction.response.send_message(f"✅ Statut : **{t} {name}**", ephemeral=True)
+        await interaction.response.send_message(confirmation, ephemeral=True)
 
 class BotConfigAvatarModal(discord.ui.Modal, title="🖼️ Changer la photo de profil"):
     url_input = discord.ui.TextInput(label="URL de l'image (PNG/JPG/GIF)", max_length=500)
