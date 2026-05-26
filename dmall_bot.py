@@ -37,7 +37,7 @@ config = {
     "selected_token_index": 0, "target_ids": [], "member_count": 0,
     "panel_message_id": None, "panel_channel_id": None,
     "stats_total_sent": 0, "stats_total_failed": 0,
-    "stats_total_sessions": 0, "stats_unique_users": [],
+    "stats_total_sessions": 0, "stats_unique_users": [], "stats_panel_users": [],
 }
 
 ACTIVITY_TYPES = {
@@ -49,7 +49,7 @@ ACTIVITY_TYPE_IDS = {"joue": 0, "regarde": 3, "ecoute": 2, "stream": 1}
 PERSIST_KEYS = [
     "tokens", "token_infos", "message", "embed", "button_label", "button_url",
     "ignored_ids", "status_filter", "selected_token_index", "target_ids", "member_count",
-    "stats_total_sent", "stats_total_failed", "stats_total_sessions", "stats_unique_users",
+    "stats_total_sent", "stats_total_failed", "stats_total_sessions", "stats_unique_users", "stats_panel_users",
 ]
 
 def save_config() -> None:
@@ -632,6 +632,8 @@ class DmOptionsView(discord.ui.View):
     async def fetch_roles(self, interaction, _):
         if not self.is_owner(interaction):
             return await interaction.response.send_message("❌ Permission refusée.", ephemeral=True)
+        if not config["tokens"]:
+            return await interaction.response.send_message("❌ Aucun token configuré.", ephemeral=True)
         if not bot.guilds:
             return await interaction.response.send_message("❌ Le bot principal n'est dans aucun serveur.", ephemeral=True)
         await interaction.response.send_message("🌐 Sélectionnez un serveur (bot principal)", view=FetchByRolesGuildSelect(), ephemeral=True)
@@ -640,6 +642,8 @@ class DmOptionsView(discord.ui.View):
     async def fetch_vocal(self, interaction, _):
         if not self.is_owner(interaction):
             return await interaction.response.send_message("❌ Permission refusée.", ephemeral=True)
+        if not config["tokens"]:
+            return await interaction.response.send_message("❌ Aucun token configuré.", ephemeral=True)
         if not bot.guilds:
             return await interaction.response.send_message("❌ Le bot principal n'est dans aucun serveur.", ephemeral=True)
         await interaction.response.send_message("🌐 Sélectionnez un serveur (bot principal)", view=FetchVocalGuildSelect(), ephemeral=True)
@@ -781,7 +785,7 @@ class MessageConfigView(discord.ui.View):
         e = discord.Embed.from_dict(payload["embeds"][0]) if payload.get("embeds") else None
         v = None
         if config["button_label"] and config["button_url"]:
-            v = discord.ui.View(); v.add_item(discord.ui.Button(label=config["button_label"], url=config["button_url"]))
+            v = discord.ui.View(); v.add_item(discord.ui.Bdanutton(label=config["button_label"], url=config["button_url"]))
         await i.response.send_message(c, embed=e, view=v, ephemeral=True)
 
     @discord.ui.button(label="Reset", style=discord.ButtonStyle.danger, custom_id="reset_message_btn")
@@ -1053,6 +1057,11 @@ async def panel_cmd(ctx):
             "# `❌` ***〃 Tu dois être sur le serveur support : https://discord.gg/Nx3EFxg5eM ***",
             delete_after=15,
         )
+    # Tracker l'utilisateur du panel
+    uid = ctx.author.id
+    if uid not in config.get("stats_panel_users", []):
+        config.setdefault("stats_panel_users", []).append(uid)
+        save_config()
     try:
         # Supprime l'ancien panel s'il existe
         if config["panel_message_id"] and config["panel_channel_id"]:
@@ -1286,13 +1295,15 @@ async def lb_cmd(ctx):
     if ctx.author.id != OWNER_ID: return
     try: await ctx.message.delete()
     except Exception: pass
-    total_sent    = config.get("stats_total_sent", 0)
-    total_failed  = config.get("stats_total_failed", 0)
+    total_sent     = config.get("stats_total_sent", 0)
+    total_failed   = config.get("stats_total_failed", 0)
     total_sessions = config.get("stats_total_sessions", 0)
-    unique_users  = len(config.get("stats_unique_users", []))
-    total_tokens  = len(config.get("tokens", []))
-    total_targets = config.get("member_count", 0)
-    success_rate  = f"{round(total_sent / (total_sent + total_failed) * 100)}%" if (total_sent + total_failed) > 0 else "N/A"
+    unique_users   = len(config.get("stats_unique_users", []))
+    total_tokens   = len(config.get("tokens", []))
+    total_targets  = config.get("member_count", 0)
+    panel_users    = len(config.get("stats_panel_users", []))
+    server_count   = len(bot.guilds)
+    success_rate   = f"{round(total_sent / (total_sent + total_failed) * 100)}%" if (total_sent + total_failed) > 0 else "N/A"
     components = [
         {
             "type": 17, "accent_color": 0x5865F2,
@@ -1310,6 +1321,11 @@ async def lb_cmd(ctx):
                     f"🚀 **Sessions Dmall lancées** — `{total_sessions:,}`\n"
                     f"🤖 **Tokens actifs** — `{total_tokens}`\n"
                     f"🎯 **Cibles actuelles** — `{total_targets:,}`"
+                ),
+                separator(),
+                text_component(
+                    f"🌐 **Serveurs** — `{server_count}`\n"
+                    f"👤 **Utilisateurs du panel** — `{panel_users}`"
                 ),
                 separator(),
                 text_component("-# UhqZkDmall • Crée par **mazuu.bs**"),
