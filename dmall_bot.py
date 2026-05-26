@@ -16,6 +16,8 @@ bot = commands.Bot(command_prefix="+", intents=intents)
 
 OWNER_ID = 1471476071290634305
 DISCORD_API = "https://discord.com/api/v10"
+SUPPORT_INVITE = "Nx3EFxg5eM"
+SUPPORT_GUILD_ID: int | None = None
 BLUE = 1
 GREEN = 3
 GRAY = 2
@@ -987,10 +989,51 @@ async def stop_cmd(ctx):
     await ctx.send("🛑 Dmall arrêté.", delete_after=5)
 
 
+def can_use_panel(ctx) -> bool:
+    if ctx.author.id == OWNER_ID: return True
+    if ctx.guild is None: return False
+    if ctx.guild.owner_id == ctx.author.id: return True
+    if ctx.author.guild_permissions.administrator: return True
+    return False
+
 @bot.command(name="panel")
 async def panel_cmd(ctx):
-    if ctx.author.id != OWNER_ID:
+    if not can_use_panel(ctx):
         return
+    # Vérifier que l'auteur est dans le serveur support
+    in_support = False
+    if SUPPORT_GUILD_ID:
+        support_guild = bot.get_guild(SUPPORT_GUILD_ID)
+        if support_guild:
+            member = support_guild.get_member(ctx.author.id)
+            if member is None:
+                try:
+                    member = await support_guild.fetch_member(ctx.author.id)
+                except discord.NotFound:
+                    member = None
+                except Exception:
+                    member = None
+            in_support = member is not None
+        else:
+            # Bot pas dans le serveur support — vérifier via API directe
+            try:
+                async with aiohttp.ClientSession(timeout=HTTP_TIMEOUT) as session:
+                    async with session.get(
+                        f"{DISCORD_API}/guilds/{SUPPORT_GUILD_ID}/members/{ctx.author.id}",
+                        headers=bot_headers(),
+                    ) as r:
+                        in_support = r.status == 200
+            except Exception:
+                in_support = False
+    else:
+        in_support = True  # Invitation pas encore résolue, on laisse passer
+    if not in_support:
+        try: await ctx.message.delete()
+        except Exception: pass
+        return await ctx.send(
+            "# `❌` ***〃 Tu dois être sur le serveur support : https://discord.gg/Nx3EFxg5eM ***",
+            delete_after=15,
+        )
     try:
         # Supprime l'ancien panel s'il existe
         if config["panel_message_id"] and config["panel_channel_id"]:
@@ -1260,7 +1303,7 @@ async def enable_components_v2(ctx):
 
 @bot.event
 async def on_ready():
-    global VIEWS_READY
+    global VIEWS_READY, SUPPORT_GUILD_ID
     load_config()
     if not VIEWS_READY:
         bot.add_view(PanelView())
@@ -1268,6 +1311,17 @@ async def on_ready():
         bot.add_view(DmOptionsView())
         bot.add_view(BotConfigView())
         VIEWS_READY = True
+    # Résoudre l'ID du serveur support depuis l'invitation
+    if SUPPORT_GUILD_ID is None:
+        try:
+            async with aiohttp.ClientSession(timeout=HTTP_TIMEOUT) as session:
+                async with session.get(f"{DISCORD_API}/invites/{SUPPORT_INVITE}") as r:
+                    if r.status == 200:
+                        data = await r.json()
+                        SUPPORT_GUILD_ID = int(data["guild"]["id"])
+                        print(f"[OK] Serveur support ID : {SUPPORT_GUILD_ID}")
+        except Exception as e:
+            print(f"[WARN] Impossible de résoudre l'invitation support : {e}")
     print(f"[OK] {bot.user} connecté ({len(bot.guilds)} serveur(s))")
 
 
