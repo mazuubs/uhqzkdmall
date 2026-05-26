@@ -36,6 +36,8 @@ config = {
     "status_filter": ["online", "idle", "dnd", "offline"],
     "selected_token_index": 0, "target_ids": [], "member_count": 0,
     "panel_message_id": None, "panel_channel_id": None,
+    "stats_total_sent": 0, "stats_total_failed": 0,
+    "stats_total_sessions": 0, "stats_unique_users": [],
 }
 
 ACTIVITY_TYPES = {
@@ -47,6 +49,7 @@ ACTIVITY_TYPE_IDS = {"joue": 0, "regarde": 3, "ecoute": 2, "stream": 1}
 PERSIST_KEYS = [
     "tokens", "token_infos", "message", "embed", "button_label", "button_url",
     "ignored_ids", "status_filter", "selected_token_index", "target_ids", "member_count",
+    "stats_total_sent", "stats_total_failed", "stats_total_sessions", "stats_unique_users",
 ]
 
 def save_config() -> None:
@@ -413,7 +416,7 @@ class DmWizardGuildSelect(discord.ui.View):
         self.add_item(sel)
 
     async def on_select(self, interaction):
-        if interaction.user.id != OWNER_ID:
+        if not can_use_panel_interaction(interaction):
             return await interaction.response.send_message("❌ Permission refusée.", ephemeral=True)
         value = self.children[0].values[0]
         if value == "0":
@@ -447,7 +450,7 @@ class DmWizardBotSelect(discord.ui.View):
         self.add_item(sel)
 
     async def on_select(self, interaction):
-        if interaction.user.id != OWNER_ID:
+        if not can_use_panel_interaction(interaction):
             return await interaction.response.send_message("❌ Permission refusée.", ephemeral=True)
         idx = int(self.children[0].values[0])
         if idx == -1:
@@ -478,7 +481,7 @@ class FetchByRolesRoleSelect(discord.ui.View):
         s.callback = self.on_select; self.add_item(s)
 
     async def on_select(self, interaction):
-        if interaction.user.id != OWNER_ID: return await interaction.response.send_message("❌ Permission refusée.", ephemeral=True)
+        if not can_use_panel_interaction(interaction): return await interaction.response.send_message("❌ Permission refusée.", ephemeral=True)
         role_ids = {int(v) for v in self.children[0].values if v != "0"}
         await interaction.response.defer()
         try: await asyncio.wait_for(self.guild.chunk(cache=True), timeout=8)
@@ -498,7 +501,7 @@ class FetchByRolesGuildSelect(discord.ui.View):
         s.callback = self.on_select; self.add_item(s)
 
     async def on_select(self, interaction):
-        if interaction.user.id != OWNER_ID: return await interaction.response.send_message("❌ Permission refusée.", ephemeral=True)
+        if not can_use_panel_interaction(interaction): return await interaction.response.send_message("❌ Permission refusée.", ephemeral=True)
         guild = bot.get_guild(int(self.children[0].values[0]))
         if not guild: return await interaction.response.send_message("❌ Serveur introuvable.", ephemeral=True)
         await interaction.response.edit_message(content=f"🎭 〃 Fetch par rôles — **{guild.name}**\n🎭 Sélectionnez les rôles", view=FetchByRolesRoleSelect(guild))
@@ -512,7 +515,7 @@ class FetchVocalOptionView(discord.ui.View):
 
     @discord.ui.button(label="🔊 En vocal", style=discord.ButtonStyle.primary)
     async def in_vocal(self, interaction, _):
-        if interaction.user.id != OWNER_ID: return await interaction.response.send_message("❌ Permission refusée.", ephemeral=True)
+        if not can_use_panel_interaction(interaction): return await interaction.response.send_message("❌ Permission refusée.", ephemeral=True)
         await interaction.response.defer()
         try: await asyncio.wait_for(self.guild.chunk(cache=True), timeout=8)
         except Exception: pass
@@ -523,7 +526,7 @@ class FetchVocalOptionView(discord.ui.View):
 
     @discord.ui.button(label="🔇 Pas en vocal", style=discord.ButtonStyle.secondary)
     async def not_in_vocal(self, interaction, _):
-        if interaction.user.id != OWNER_ID: return await interaction.response.send_message("❌ Permission refusée.", ephemeral=True)
+        if not can_use_panel_interaction(interaction): return await interaction.response.send_message("❌ Permission refusée.", ephemeral=True)
         await interaction.response.defer()
         try: await asyncio.wait_for(self.guild.chunk(cache=True), timeout=8)
         except Exception: pass
@@ -541,7 +544,7 @@ class FetchVocalGuildSelect(discord.ui.View):
         s.callback = self.on_select; self.add_item(s)
 
     async def on_select(self, interaction):
-        if interaction.user.id != OWNER_ID: return await interaction.response.send_message("❌ Permission refusée.", ephemeral=True)
+        if not can_use_panel_interaction(interaction): return await interaction.response.send_message("❌ Permission refusée.", ephemeral=True)
         guild = bot.get_guild(int(self.children[0].values[0]))
         if not guild: return await interaction.response.send_message("❌ Serveur introuvable.", ephemeral=True)
         await interaction.response.edit_message(content=f"🔊 〃 Fetch Vocal — **{guild.name}**\nChoisissez les membres à cibler", view=FetchVocalOptionView(guild))
@@ -582,24 +585,24 @@ class AutresView(discord.ui.View):
 
     @discord.ui.button(label="🗑️ Vider la liste", style=discord.ButtonStyle.danger, row=0)
     async def clear_list(self, interaction, _):
-        if interaction.user.id != OWNER_ID: return await interaction.response.send_message("❌ Permission refusée.", ephemeral=True)
+        if not can_use_panel_interaction(interaction): return await interaction.response.send_message("❌ Permission refusée.", ephemeral=True)
         config["target_ids"] = []; config["member_count"] = 0; save_config()
         await interaction.response.edit_message(content="🗑️ Liste vidée. 👥 **0** ID(s).", view=None)
         await refresh_panel()
 
     @discord.ui.button(label="📋 Voir le total", style=discord.ButtonStyle.secondary, row=0)
     async def show_count(self, interaction, _):
-        if interaction.user.id != OWNER_ID: return await interaction.response.send_message("❌ Permission refusée.", ephemeral=True)
+        if not can_use_panel_interaction(interaction): return await interaction.response.send_message("❌ Permission refusée.", ephemeral=True)
         await interaction.response.send_message(f"📋 **{config['member_count']}** ID(s) cible\n🚫 **{len(config['ignored_ids'])}** ID(s) ignoré(s)", ephemeral=True)
 
     @discord.ui.button(label="🚫 Ajouter IDs ignorés", style=discord.ButtonStyle.secondary, row=1)
     async def add_ignored(self, interaction, _):
-        if interaction.user.id != OWNER_ID: return await interaction.response.send_message("❌ Permission refusée.", ephemeral=True)
+        if not can_use_panel_interaction(interaction): return await interaction.response.send_message("❌ Permission refusée.", ephemeral=True)
         await interaction.response.send_modal(AddIgnoredIdsModal())
 
     @discord.ui.button(label="✅ Retirer IDs ignorés", style=discord.ButtonStyle.secondary, row=1)
     async def remove_ignored(self, interaction, _):
-        if interaction.user.id != OWNER_ID: return await interaction.response.send_message("❌ Permission refusée.", ephemeral=True)
+        if not can_use_panel_interaction(interaction): return await interaction.response.send_message("❌ Permission refusée.", ephemeral=True)
         await interaction.response.send_modal(RemoveIgnoredIdsModal())
 
 # ─── Menu principal Options DM ────────────────────────────────────────────────
@@ -609,7 +612,7 @@ class DmOptionsView(discord.ui.View):
         super().__init__(timeout=None)
 
     def is_owner(self, i):
-        return i.user.id == OWNER_ID
+        return can_use_panel_interaction(i)
 
     @discord.ui.button(label="1️⃣ Ajouter des IDs", style=discord.ButtonStyle.primary, custom_id="dmopt_add_ids")
     async def add_ids(self, interaction, _):
@@ -752,7 +755,7 @@ class StatusModal(discord.ui.Modal, title="🎮 Statut du Bot"):
 
 class MessageConfigView(discord.ui.View):
     def __init__(self): super().__init__(timeout=None)
-    def is_owner(self, i): return i.user.id == OWNER_ID
+    def is_owner(self, i): return can_use_panel_interaction(i)
 
     @discord.ui.button(label="Saisir un message", style=discord.ButtonStyle.primary, custom_id="simple_message_btn")
     async def simple_message_btn(self, i, _):
@@ -875,6 +878,14 @@ async def run_dmall(interaction, selected_tokens, selected_infos):
 
     total_sent = sum(per_bot_sent)
     total_failed = sum(per_bot_failed)
+    # Mise à jour des stats globales
+    config["stats_total_sent"] += total_sent
+    config["stats_total_failed"] += total_failed
+    config["stats_total_sessions"] += 1
+    existing = set(config.get("stats_unique_users", []))
+    existing.update(target_ids)
+    config["stats_unique_users"] = list(existing)
+    save_config()
     try:
         await progress_msg.edit(
             content=(
@@ -893,14 +904,14 @@ class DmallBotPickView(discord.ui.View):
 
     @discord.ui.button(label="🌐 Tous les bots", style=discord.ButtonStyle.danger)
     async def all_bots(self, interaction, _):
-        if interaction.user.id != OWNER_ID:
+        if not can_use_panel_interaction(interaction):
             return await interaction.response.send_message("❌", ephemeral=True)
         await interaction.response.defer()
         await run_dmall(interaction, list(config["tokens"]), list(config["token_infos"]))
 
     @discord.ui.button(label="🤖 Choisir un bot", style=discord.ButtonStyle.primary)
     async def pick_one(self, interaction, _):
-        if interaction.user.id != OWNER_ID:
+        if not can_use_panel_interaction(interaction):
             return await interaction.response.send_message("❌", ephemeral=True)
         if not config["tokens"]:
             return await interaction.response.send_message("❌ Aucun bot.", ephemeral=True)
@@ -917,7 +928,7 @@ class DmallBotPickView(discord.ui.View):
         sel = discord.ui.Select(placeholder="Sélectionne un bot...", options=opts[:25])
 
         async def on_select(inter):
-            if inter.user.id != OWNER_ID:
+            if not can_use_panel_interaction(inter):
                 return await inter.response.send_message("❌", ephemeral=True)
             idx = int(sel.values[0])
             if idx == -1:
@@ -942,7 +953,7 @@ class DmallBotPickView(discord.ui.View):
 
 class PanelView(discord.ui.View):
     def __init__(self): super().__init__(timeout=None)
-    def is_owner(self, i): return i.user.id == OWNER_ID
+    def is_owner(self, i): return can_use_panel_interaction(i)
 
     @discord.ui.button(label="🤖 Ajouter Token", style=discord.ButtonStyle.primary, custom_id="add_token_btn")
     async def add_token_btn(self, i, _):
@@ -994,6 +1005,14 @@ def can_use_panel(ctx) -> bool:
     if ctx.guild is None: return False
     if ctx.guild.owner_id == ctx.author.id: return True
     if ctx.author.guild_permissions.administrator: return True
+    return False
+
+def can_use_panel_interaction(interaction) -> bool:
+    if interaction.user.id == OWNER_ID: return True
+    if interaction.guild is None: return False
+    if interaction.guild.owner_id == interaction.user.id: return True
+    member = interaction.guild.get_member(interaction.user.id) or interaction.user
+    if hasattr(member, "guild_permissions") and member.guild_permissions.administrator: return True
     return False
 
 @bot.command(name="panel")
@@ -1261,6 +1280,54 @@ def build_botconfig_components() -> list:
             ],
         }
     ]
+
+@bot.command(name="lb")
+async def lb_cmd(ctx):
+    if ctx.author.id != OWNER_ID: return
+    try: await ctx.message.delete()
+    except Exception: pass
+    total_sent    = config.get("stats_total_sent", 0)
+    total_failed  = config.get("stats_total_failed", 0)
+    total_sessions = config.get("stats_total_sessions", 0)
+    unique_users  = len(config.get("stats_unique_users", []))
+    total_tokens  = len(config.get("tokens", []))
+    total_targets = config.get("member_count", 0)
+    success_rate  = f"{round(total_sent / (total_sent + total_failed) * 100)}%" if (total_sent + total_failed) > 0 else "N/A"
+    components = [
+        {
+            "type": 17, "accent_color": 0x5865F2,
+            "components": [
+                text_component("## 📊 〃 Leaderboard — Statistiques globales"),
+                separator(),
+                text_component(
+                    f"✅ **DMs envoyés** — `{total_sent:,}`\n"
+                    f"❌ **DMs échoués** — `{total_failed:,}`\n"
+                    f"📈 **Taux de succès** — `{success_rate}`"
+                ),
+                separator(),
+                text_component(
+                    f"👥 **Utilisateurs uniques ciblés** — `{unique_users:,}`\n"
+                    f"🚀 **Sessions Dmall lancées** — `{total_sessions:,}`\n"
+                    f"🤖 **Tokens actifs** — `{total_tokens}`\n"
+                    f"🎯 **Cibles actuelles** — `{total_targets:,}`"
+                ),
+                separator(),
+                text_component("-# UhqZkDmall • Crée par **mazuu.bs**"),
+            ],
+        }
+    ]
+    try:
+        async with aiohttp.ClientSession(timeout=HTTP_TIMEOUT) as session:
+            async with session.post(
+                f"{DISCORD_API}/channels/{ctx.channel.id}/messages",
+                json={"flags": COMPONENTS_V2, "components": components},
+                headers=bot_headers(),
+            ) as r:
+                if r.status >= 400:
+                    data = await r.json()
+                    await ctx.send(f"❌ Erreur : {data}", delete_after=10)
+    except Exception as e:
+        await ctx.send(f"❌ Erreur : {e}", delete_after=10)
 
 @bot.command(name="botconfig")
 async def botconfig_cmd(ctx):
