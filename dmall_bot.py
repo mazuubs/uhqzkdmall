@@ -688,12 +688,9 @@ class TokenModal(discord.ui.Modal, title="🤖 Ajouter des Tokens"):
             config["tokens"].append(token)
             config["token_infos"].append(info)
             invite = f"https://discord.com/oauth2/authorize?client_id={info['id']}&scope=bot&permissions=8"
-            dm_payload = {"content": f"✅ Token ajouté avec succès !\n\nJe suis **{info['name']}** et je suis prêt à envoyer des DMs.\n🔗 [Inviter le bot]({invite})"}
-            dm_ok = await send_dm_via_token(token, OWNER_ID, dm_payload)
-            dm_status = " ✉️ DM envoyé" if dm_ok else " ⚠️ DM échoué"
             # Démarrer la connexion Gateway persistante (statut stream)
             start_token_gateway(token)
-            added_lines.append(f"✅ **{info['name']}** — [Inviter]({invite}){dm_status}")
+            added_lines.append(f"✅ **{info['name']}** — [Inviter]({invite})")
         save_config()
         parts = []
         if added_lines:
