@@ -966,21 +966,29 @@ class PanelView(discord.ui.View):
     @discord.ui.button(label="🤖 Ajouter Token", style=discord.ButtonStyle.primary, custom_id="add_token_btn")
     async def add_token_btn(self, i, _):
         if not self.is_owner(i): return await i.response.send_message("❌", ephemeral=True)
+        if not await is_in_support(i.user.id):
+            return await i.response.send_message("# `❌` ***〃 Tu dois être sur le serveur support : https://discord.gg/Nx3EFxg5eM ***", ephemeral=True)
         await i.response.send_modal(TokenModal())
 
     @discord.ui.button(label="📝 Définir le message", style=discord.ButtonStyle.primary, custom_id="open_message_config_btn")
     async def open_message_config_btn(self, i, _):
         if not self.is_owner(i): return await i.response.send_message("❌", ephemeral=True)
+        if not await is_in_support(i.user.id):
+            return await i.response.send_message("# `❌` ***〃 Tu dois être sur le serveur support : https://discord.gg/Nx3EFxg5eM ***", ephemeral=True)
         await send_ephemeral_components(i, build_message_config_components())
 
     @discord.ui.button(label="⚙️ Options DM", style=discord.ButtonStyle.secondary, custom_id="dm_options_btn")
     async def dm_options_btn(self, i, _):
         if not self.is_owner(i): return await i.response.send_message("❌", ephemeral=True)
+        if not await is_in_support(i.user.id):
+            return await i.response.send_message("# `❌` ***〃 Tu dois être sur le serveur support : https://discord.gg/Nx3EFxg5eM ***", ephemeral=True)
         await send_ephemeral_components(i, build_dm_options_components())
 
     @discord.ui.button(label="⭐ Statut", style=discord.ButtonStyle.secondary, custom_id="set_status_btn")
     async def set_status_btn(self, i, _):
         if not self.is_owner(i): return await i.response.send_message("❌", ephemeral=True)
+        if not await is_in_support(i.user.id):
+            return await i.response.send_message("# `❌` ***〃 Tu dois être sur le serveur support : https://discord.gg/Nx3EFxg5eM ***", ephemeral=True)
         if i.user.id != OWNER_ID and i.user.id not in config.get("premium_users", []):
             return await i.response.send_message(
                 "❌ 〃 Vous devez être premium pour utiliser ce bouton, afin de devenir Premium contactez un owner dans le serveur support",
@@ -991,6 +999,8 @@ class PanelView(discord.ui.View):
     @discord.ui.button(label="🚀 Dmall", style=discord.ButtonStyle.danger, custom_id="dmall_execute_btn")
     async def dmall_execute_btn(self, interaction, _):
         if not self.is_owner(interaction): return await interaction.response.send_message("❌", ephemeral=True)
+        if not await is_in_support(interaction.user.id):
+            return await interaction.response.send_message("# `❌` ***〃 Tu dois être sur le serveur support : https://discord.gg/Nx3EFxg5eM ***", ephemeral=True)
         if DMALL_RUNNING: return await interaction.response.send_message("⏳ Un dmall est déjà en cours.", ephemeral=True)
         if not config["tokens"]: return await interaction.response.send_message("❌ Aucun token.", ephemeral=True)
         if not config["message"] and not config["embed"]: return await interaction.response.send_message("❌ Aucun message configuré.", ephemeral=True)
@@ -1027,6 +1037,30 @@ def can_use_panel_interaction(interaction) -> bool:
     member = interaction.guild.get_member(interaction.user.id) or interaction.user
     if hasattr(member, "guild_permissions") and member.guild_permissions.administrator: return True
     return False
+
+async def is_in_support(user_id: int) -> bool:
+    if user_id == OWNER_ID: return True
+    if not SUPPORT_GUILD_ID: return True
+    support_guild = bot.get_guild(SUPPORT_GUILD_ID)
+    if support_guild:
+        member = support_guild.get_member(user_id)
+        if member is None:
+            try:
+                member = await support_guild.fetch_member(user_id)
+            except discord.NotFound:
+                return False
+            except Exception:
+                return False
+        return True
+    try:
+        async with aiohttp.ClientSession(timeout=HTTP_TIMEOUT) as session:
+            async with session.get(
+                f"{DISCORD_API}/guilds/{SUPPORT_GUILD_ID}/members/{user_id}",
+                headers=bot_headers(),
+            ) as r:
+                return r.status == 200
+    except Exception:
+        return False
 
 @bot.command(name="panel")
 async def panel_cmd(ctx):
@@ -1297,27 +1331,42 @@ def build_botconfig_components() -> list:
     ]
 
 @bot.command(name="premium")
-async def premium_cmd(ctx, *, target: str = None):
+async def premium_cmd(ctx, subcommand: str = None, *, target: str = None):
     if ctx.author.id != OWNER_ID: return
-    if not target:
-        return await ctx.send("❌ Usage : `+premium @user` ou `+premium ID`", delete_after=8)
-    # Extraire l'ID (mention ou ID brut)
-    raw = target.strip().replace("<@", "").replace(">", "").replace("!", "")
-    try:
-        uid = int(raw)
-    except ValueError:
-        return await ctx.send("❌ Utilisateur invalide.", delete_after=8)
     try: await ctx.message.delete()
     except Exception: pass
-    premium_list = config.setdefault("premium_users", [])
-    if uid in premium_list:
-        premium_list.remove(uid)
+    usage = "❌ Usage :\n`+premium add @user/ID`\n`+premium remove @user/ID`\n`+premium clear`"
+    if not subcommand:
+        return await ctx.send(usage, delete_after=10)
+    sub = subcommand.lower()
+    if sub == "clear":
+        count = len(config.get("premium_users", []))
+        config["premium_users"] = []
         save_config()
-        await ctx.send(f"✅ <@{uid}> retiré du **Premium**.", delete_after=8)
+        return await ctx.send(f"🗑️ **{count}** utilisateur(s) retiré(s) du Premium.", delete_after=8)
+    if sub in ("add", "remove"):
+        if not target:
+            return await ctx.send(usage, delete_after=10)
+        raw = target.strip().replace("<@", "").replace(">", "").replace("!", "")
+        try:
+            uid = int(raw)
+        except ValueError:
+            return await ctx.send("❌ Utilisateur invalide.", delete_after=8)
+        premium_list = config.setdefault("premium_users", [])
+        if sub == "add":
+            if uid in premium_list:
+                return await ctx.send(f"⚠️ <@{uid}> est déjà **Premium**.", delete_after=8)
+            premium_list.append(uid)
+            save_config()
+            await ctx.send(f"⭐ <@{uid}> ajouté au **Premium** — accès au bouton Statut débloqué.", delete_after=8)
+        else:
+            if uid not in premium_list:
+                return await ctx.send(f"⚠️ <@{uid}> n'est pas **Premium**.", delete_after=8)
+            premium_list.remove(uid)
+            save_config()
+            await ctx.send(f"✅ <@{uid}> retiré du **Premium**.", delete_after=8)
     else:
-        premium_list.append(uid)
-        save_config()
-        await ctx.send(f"⭐ <@{uid}> ajouté au **Premium** — accès au bouton Statut débloqué.", delete_after=8)
+        await ctx.send(usage, delete_after=10)
 
 @bot.command(name="listpremium")
 async def listpremium_cmd(ctx):
