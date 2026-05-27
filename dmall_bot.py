@@ -12,7 +12,7 @@ intents.members = True
 intents.message_content = True
 intents.presences = True
 
-bot = commands.Bot(command_prefix="+", intents=intents)
+bot = commands.Bot(command_prefix="+", intents=intents, help_command=None)
 
 OWNER_ID = 1471476071290634305
 DISCORD_API = "https://discord.com/api/v10"
