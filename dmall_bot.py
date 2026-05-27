@@ -1064,9 +1064,8 @@ async def is_in_support(user_id: int) -> bool:
 @bot.command(name="help")
 async def help_cmd(ctx):
     await ctx.send(
-        "## `💎` 〃 UhqZkDmall — Commandes\n"
+        "## `💎` 〃 FluxBot — Commandes\n"
         ">>> `+panel` — Ouvre le panel de configuration du Dmall\n"
-        "-# Rejoins le serveur support : https://discord.gg/Nx3EFxg5eM"
     )
 
 @bot.command(name="panel")
