@@ -1061,6 +1061,14 @@ async def is_in_support(user_id: int) -> bool:
     except Exception:
         return False
 
+@bot.command(name="help")
+async def help_cmd(ctx):
+    await ctx.send(
+        "## `💎` 〃 UhqZkDmall — Commandes\n"
+        ">>> `+panel` — Ouvre le panel de configuration du Dmall\n"
+        "-# Rejoins le serveur support : https://discord.gg/Nx3EFxg5eM"
+    )
+
 @bot.command(name="panel")
 async def panel_cmd(ctx):
     if not can_use_panel(ctx):
