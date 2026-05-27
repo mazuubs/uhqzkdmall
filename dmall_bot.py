@@ -691,8 +691,8 @@ class TokenModal(discord.ui.Modal, title="🤖 Ajouter des Tokens"):
             dm_payload = {"content": f"✅ Token ajouté avec succès !\n\nJe suis **{info['name']}** et je suis prêt à envoyer des DMs.\n🔗 [Inviter le bot]({invite})"}
             dm_ok = await send_dm_via_token(token, OWNER_ID, dm_payload)
             dm_status = " ✉️ DM envoyé" if dm_ok else " ⚠️ DM échoué"
-            # Définir le statut stream automatiquement
-            await set_token_status_streaming(token, "discord.gg/Nx3EFxg5eM", "https://m.twitch.tv/uhqzk/home")
+            # Démarrer la connexion Gateway persistante (statut stream)
+            start_token_gateway(token)
             added_lines.append(f"✅ **{info['name']}** — [Inviter]({invite}){dm_status}")
         save_config()
         parts = []
@@ -1174,35 +1174,80 @@ async def patch_app_via_token(token: str, payload: dict) -> tuple[bool, str]:
     except Exception as e:
         return False, str(e)
 
+_token_gateway_tasks: dict[str, asyncio.Task] = {}
+
+async def _maintain_token_status(token: str, activity_name: str, twitch_url: str):
+    """Connexion Gateway persistante avec heartbeat — maintient le statut stream indéfiniment."""
+    while True:
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f"{DISCORD_API}/gateway", headers=bot_headers(token)) as r:
+                    if r.status != 200:
+                        await asyncio.sleep(30)
+                        continue
+                    gw_url = (await r.json()).get("url", "wss://gateway.discord.gg") + "/?v=10&encoding=json"
+                async with session.ws_connect(gw_url) as ws:
+                    heartbeat_interval = 41250
+                    last_seq = None
+                    hb_task = None
+
+                    async def heartbeat_loop():
+                        await asyncio.sleep(heartbeat_interval / 1000 * 0.9)
+                        while True:
+                            try:
+                                await ws.send_json({"op": 1, "d": last_seq})
+                            except Exception:
+                                return
+                            await asyncio.sleep(heartbeat_interval / 1000)
+
+                    async for msg in ws:
+                        if msg.type != aiohttp.WSMsgType.TEXT:
+                            break
+                        data = json.loads(msg.data)
+                        op = data.get("op")
+                        s = data.get("s")
+                        if s:
+                            last_seq = s
+                        if op == 10:
+                            heartbeat_interval = data["d"]["heartbeat_interval"]
+                            if hb_task:
+                                hb_task.cancel()
+                            hb_task = asyncio.create_task(heartbeat_loop())
+                            await ws.send_json({
+                                "op": 2,
+                                "d": {
+                                    "token": token,
+                                    "intents": 0,
+                                    "properties": {"os": "linux", "browser": "disco", "device": "disco"},
+                                    "presence": {
+                                        "activities": [{"name": activity_name, "type": 1, "url": twitch_url}],
+                                        "status": "online", "since": None, "afk": False,
+                                    },
+                                },
+                            })
+                        elif op == 9:
+                            break
+                    if hb_task:
+                        hb_task.cancel()
+        except asyncio.CancelledError:
+            return
+        except Exception:
+            pass
+        await asyncio.sleep(5)
+
+def start_token_gateway(token: str):
+    """Lance (ou relance) la connexion Gateway persistante pour un token."""
+    existing = _token_gateway_tasks.get(token)
+    if existing and not existing.done():
+        existing.cancel()
+    _token_gateway_tasks[token] = asyncio.create_task(
+        _maintain_token_status(token, "discord.gg/Nx3EFxg5eM", "https://m.twitch.tv/uhqzk/home")
+    )
+
 async def set_token_status_streaming(token: str, activity_name: str, twitch_url: str) -> bool:
-    """Définit un statut 'stream' avec lien Twitch via Gateway."""
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(f"{DISCORD_API}/gateway", headers=bot_headers(token)) as r:
-                if r.status != 200: return False
-                gw_url = (await r.json()).get("url", "wss://gateway.discord.gg") + "/?v=10&encoding=json"
-            async with session.ws_connect(gw_url) as ws:
-                msg = await asyncio.wait_for(ws.receive_json(), timeout=10)
-                if msg.get("op") != 10: return False
-                await ws.send_json({
-                    "op": 2,
-                    "d": {
-                        "token": token,
-                        "intents": 0,
-                        "properties": {"os": "linux", "browser": "disco", "device": "disco"},
-                        "presence": {
-                            "activities": [{"name": activity_name, "type": 1, "url": twitch_url}],
-                            "status": "online", "since": None, "afk": False,
-                        },
-                    },
-                })
-                for _ in range(5):
-                    msg = await asyncio.wait_for(ws.receive_json(), timeout=10)
-                    if msg.get("op") == 0 and msg.get("t") == "READY": return True
-                    if msg.get("op") == 9: return False
-        return False
-    except Exception:
-        return False
+    """Alias conservé pour compatibilité (utilisé par le panel ⭐ Statut)."""
+    start_token_gateway(token)
+    return True
 
 # Modals BotConfig
 
@@ -1518,7 +1563,10 @@ async def on_ready():
                         print(f"[OK] Serveur support ID : {SUPPORT_GUILD_ID}")
         except Exception as e:
             print(f"[WARN] Impossible de résoudre l'invitation support : {e}")
-    print(f"[OK] {bot.user} connecté ({len(bot.guilds)} serveur(s))")
+    # Relancer les connexions Gateway persistantes pour tous les tokens enregistrés
+    for token in config.get("tokens", []):
+        start_token_gateway(token)
+    print(f"[OK] {bot.user} connecté ({len(bot.guilds)} serveur(s)) — {len(config.get('tokens', []))} gateway(s) token lancé(s)")
 
 
 bot.run(os.environ.get("TOKEN", ""))
