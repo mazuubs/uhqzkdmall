@@ -1248,7 +1248,7 @@ class BotConfigStatusModal(discord.ui.Modal, title="🎮 Changer le statut"):
                 return await interaction.response.send_message("❌ Utilise : joue / regarde / ecoute / stream", ephemeral=True)
             act = discord.Activity(type=act_type, name=name)
             confirmation = f"✅ Statut **{t} {name}**"
-        await bot.change_presence(activity=act)
+        await bot.change_presence(status=discord.Status.online, activity=act)
         await interaction.response.send_message(confirmation, ephemeral=True)
 
 class BotConfigAvatarModal(discord.ui.Modal, title="🖼️ Changer la photo de profil"):
