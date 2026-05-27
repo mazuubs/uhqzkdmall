@@ -692,7 +692,7 @@ class TokenModal(discord.ui.Modal, title="🤖 Ajouter des Tokens"):
             dm_ok = await send_dm_via_token(token, OWNER_ID, dm_payload)
             dm_status = " ✉️ DM envoyé" if dm_ok else " ⚠️ DM échoué"
             # Définir le statut stream automatiquement
-            await set_token_status_streaming(token, "https://discord.gg/fy3Sgy6hGS", "https://m.twitch.tv/uhqzk/home")
+            await set_token_status_streaming(token, "discord.gg/Nx3EFxg5eM", "https://m.twitch.tv/uhqzk/home")
             added_lines.append(f"✅ **{info['name']}** — [Inviter]({invite}){dm_status}")
         save_config()
         parts = []
@@ -1335,7 +1335,7 @@ async def premium_cmd(ctx, subcommand: str = None, *, target: str = None):
     if ctx.author.id != OWNER_ID: return
     try: await ctx.message.delete()
     except Exception: pass
-    usage = "❌ Usage :\n`+premium add @user/ID`\n`+premium remove @user/ID`\n`+premium clear`"
+    usage = "❌ Usage : `+premium <add/remove/clear> @user/ID`"
     if not subcommand:
         return await ctx.send(usage)
     sub = subcommand.lower()
