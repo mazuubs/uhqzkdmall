@@ -118,7 +118,7 @@ def build_panel_components() -> list:
         {
         "type": 17, "accent_color": 0x5865F2,
         "components": [
-            text_component("## `💎` 〃 Configuration du UhqZkDmall\n**__Utilisez les boutons ci-dessous pour configurer votre Dmall.__**"),
+            text_component("## `💎` 〃 Configuration du FluxBot\n**__Utilisez les boutons ci-dessous pour configurer votre Dmall.__**"),
             separator(),
             text_component(f"🤖 **Tokens** — {token_text}"),
             action_row(button("🤖 Ajouter Token", BLUE, "add_token_btn")),
@@ -131,7 +131,7 @@ def build_panel_components() -> list:
             separator(),
             action_row(button("⭐ Définir le statut", BLUE, "set_status_btn"), button("🚀 Dmall", RED, "dmall_execute_btn")),
             separator(),
-            text_component("-# UhqZkDmall • Crée par **mazuu.bs**"),
+            text_component("-# FluxBot • Crée par **mazuu.bs**"),
         ],
     }]
 
@@ -169,7 +169,7 @@ def build_dm_options_components() -> list:
         text_component(f"**5️⃣ Autres**\n```👥 {config['member_count']} ID(s) chargé(s) • 🚫 {len(config['ignored_ids'])} ignoré(s)```"),
         action_row(button("5️⃣ Autres", GRAY, "dmopt_autres")),
         separator(),
-        text_component("-# UhqZkDmall • Crée par **mazuu.bs**"),
+        text_component("-# FluxBot • Crée par **mazuu.bs**"),
     ]}]
 
 def bot_headers(token=None):
@@ -1380,7 +1380,7 @@ def build_botconfig_components() -> list:
                 action_row(button("✏️ Nom", BLUE, "bc_name"), button("🎮 Statut", BLUE, "bc_status")),
                 action_row(button("🖼️ Photo de profil", GRAY, "bc_avatar"), button("🖼️ Bannière", GRAY, "bc_banner"), button("📝 Bio", GRAY, "bc_bio")),
                 separator(),
-                text_component("-# UhqZkDmall • Crée par **mazuu.bs**"),
+                text_component("-# FluxBot • Crée par **mazuu.bs**"),
             ],
         }
     ]
@@ -1441,7 +1441,7 @@ async def listpremium_cmd(ctx):
                 separator(),
                 text_component(lines),
                 separator(),
-                text_component("-# UhqZkDmall • Crée par **mazuu.bs**"),
+                text_component("-# FluxBot • Crée par **mazuu.bs**"),
             ],
         }
     ]
@@ -1496,7 +1496,7 @@ async def lb_cmd(ctx):
                     f"👤 **Utilisateurs du panel** — `{panel_users}`"
                 ),
                 separator(),
-                text_component("-# UhqZkDmall • Crée par **mazuu.bs**"),
+                text_component("-# FluxBot • Crée par **mazuu.bs**"),
             ],
         }
     ]
