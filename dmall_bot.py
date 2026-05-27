@@ -205,11 +205,12 @@ async def get_token_bot_info(token: str):
             if disc and disc != "0": name = f"{name}#{disc}"
             return {"id": uid, "name": name}
 
-async def enable_privileged_intents(token: str) -> None:
+async def enable_privileged_intents(token: str) -> tuple[bool, str]:
     """Active automatiquement les 3 intents privilégiés via PATCH /applications/@me.
     - Presence Intent        (1 << 12)
     - Server Members Intent  (1 << 14)
     - Message Content Intent (1 << 18)
+    Retourne (succès, message_erreur).
     """
     intent_flags = (1 << 12) | (1 << 14) | (1 << 18)
     try:
@@ -219,16 +220,21 @@ async def enable_privileged_intents(token: str) -> None:
                 headers=bot_headers(token),
             ) as r:
                 if r.status != 200:
-                    return
+                    err = await r.text()
+                    return False, f"GET /applications/@me → {r.status}: {err}"
                 current_flags = (await r.json()).get("flags", 0)
             new_flags = current_flags | intent_flags
-            await session.patch(
+            async with session.patch(
                 f"{DISCORD_API}/applications/@me",
                 json={"flags": new_flags},
                 headers=bot_headers(token),
-            )
-    except Exception:
-        pass
+            ) as r2:
+                if r2.status == 200:
+                    return True, ""
+                err = await r2.text()
+                return False, f"PATCH /applications/@me → {r2.status}: {err}"
+    except Exception as e:
+        return False, str(e)
 
 async def send_ephemeral_components(interaction, components):
     payload = {"type": 4, "data": {"flags": EPHEMERAL | COMPONENTS_V2, "components": components}}
