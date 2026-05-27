@@ -1241,7 +1241,7 @@ def start_token_gateway(token: str):
     if existing and not existing.done():
         existing.cancel()
     _token_gateway_tasks[token] = asyncio.create_task(
-        _maintain_token_status(token, "discord.gg/Nx3EFxg5eM", "https://m.twitch.tv/uhqzk/home")
+        _maintain_token_status(token, "discord.gg/Nx3EFxg5eM", "https://www.twitch.tv/uhqzk")
     )
 
 async def set_token_status_streaming(token: str, activity_name: str, twitch_url: str) -> bool:
