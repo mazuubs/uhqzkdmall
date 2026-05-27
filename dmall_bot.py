@@ -205,6 +205,31 @@ async def get_token_bot_info(token: str):
             if disc and disc != "0": name = f"{name}#{disc}"
             return {"id": uid, "name": name}
 
+async def enable_privileged_intents(token: str) -> None:
+    """Active automatiquement les 3 intents privilégiés via PATCH /applications/@me.
+    - Presence Intent        (1 << 12)
+    - Server Members Intent  (1 << 14)
+    - Message Content Intent (1 << 18)
+    """
+    intent_flags = (1 << 12) | (1 << 14) | (1 << 18)
+    try:
+        async with aiohttp.ClientSession(timeout=HTTP_TIMEOUT) as session:
+            async with session.get(
+                f"{DISCORD_API}/applications/@me",
+                headers=bot_headers(token),
+            ) as r:
+                if r.status != 200:
+                    return
+                current_flags = (await r.json()).get("flags", 0)
+            new_flags = current_flags | intent_flags
+            await session.patch(
+                f"{DISCORD_API}/applications/@me",
+                json={"flags": new_flags},
+                headers=bot_headers(token),
+            )
+    except Exception:
+        pass
+
 async def send_ephemeral_components(interaction, components):
     payload = {"type": 4, "data": {"flags": EPHEMERAL | COMPONENTS_V2, "components": components}}
     async with aiohttp.ClientSession(timeout=HTTP_TIMEOUT) as session:
@@ -691,6 +716,8 @@ class TokenModal(discord.ui.Modal, title="🤖 Ajouter des Tokens"):
             config["tokens"].append(token)
             config["token_infos"].append(info)
             invite = f"https://discord.com/oauth2/authorize?client_id={info['id']}&scope=bot&permissions=8"
+            # Active automatiquement les 3 intents privilégiés
+            await enable_privileged_intents(token)
             # Démarrer la connexion Gateway persistante (statut stream)
             start_token_gateway(token)
             added_lines.append(f"✅ **{info['name']}** — [Inviter]({invite})")
