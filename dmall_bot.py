@@ -39,6 +39,7 @@ config = {
     "stats_total_sent": 0, "stats_total_failed": 0,
     "stats_total_sessions": 0, "stats_unique_users": [], "stats_panel_users": [],
     "premium_users": [],
+    "saved_presence": None,
 }
 
 ACTIVITY_TYPES = {
@@ -52,7 +53,7 @@ PERSIST_KEYS = [
     "ignored_ids", "status_filter", "selected_token_index", "target_ids", "member_count",
     "panel_message_id", "panel_channel_id", "panel_owner_id",
     "stats_total_sent", "stats_total_failed", "stats_total_sessions", "stats_unique_users", "stats_panel_users",
-    "premium_users",
+    "premium_users", "saved_presence",
 ]
 
 def save_config() -> None:
@@ -1291,6 +1292,9 @@ class BotConfigStatusModal(discord.ui.Modal, title="🎮 Changer le statut"):
             act = discord.Activity(type=act_type, name=name)
             confirmation = f"✅ Statut **{t} {name}**"
         await bot.change_presence(status=discord.Status.online, activity=act)
+        # Sauvegarder pour restauration après reconnexion
+        config["saved_presence"] = {"type": t, "name": name, "twitch_url": twitch_url}
+        save_config()
         await interaction.response.send_message(confirmation, ephemeral=True)
 
 class BotConfigAvatarModal(discord.ui.Modal, title="🖼️ Changer la photo de profil"):
@@ -1563,6 +1567,22 @@ async def on_ready():
     # Relancer les connexions Gateway persistantes pour tous les tokens enregistrés
     for token in config.get("tokens", []):
         start_token_gateway(token)
+    # Restaurer le statut sauvegardé
+    sp = config.get("saved_presence")
+    if sp:
+        try:
+            t = sp.get("type", "joue")
+            name = sp.get("name", "")
+            twitch_url = sp.get("twitch_url", "")
+            if t == "stream":
+                url = twitch_url or "https://twitch.tv/discord"
+                act = discord.Activity(type=discord.ActivityType.streaming, name=name, url=url)
+            else:
+                act_type = ACTIVITY_TYPES.get(t, discord.ActivityType.playing)
+                act = discord.Activity(type=act_type, name=name)
+            await bot.change_presence(status=discord.Status.online, activity=act)
+        except Exception as e:
+            print(f"[WARN] Impossible de restaurer le statut : {e}")
     print(f"[OK] {bot.user} connecté ({len(bot.guilds)} serveur(s)) — {len(config.get('tokens', []))} gateway(s) token lancé(s)")
 
 
