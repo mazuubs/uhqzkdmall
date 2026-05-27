@@ -1337,36 +1337,36 @@ async def premium_cmd(ctx, subcommand: str = None, *, target: str = None):
     except Exception: pass
     usage = "❌ Usage :\n`+premium add @user/ID`\n`+premium remove @user/ID`\n`+premium clear`"
     if not subcommand:
-        return await ctx.send(usage, delete_after=10)
+        return await ctx.send(usage)
     sub = subcommand.lower()
     if sub == "clear":
         count = len(config.get("premium_users", []))
         config["premium_users"] = []
         save_config()
-        return await ctx.send(f"🗑️ **{count}** utilisateur(s) retiré(s) du Premium.", delete_after=8)
+        return await ctx.send(f"🗑️ **{count}** utilisateur(s) retiré(s) du Premium.")
     if sub in ("add", "remove"):
         if not target:
-            return await ctx.send(usage, delete_after=10)
+            return await ctx.send(usage)
         raw = target.strip().replace("<@", "").replace(">", "").replace("!", "")
         try:
             uid = int(raw)
         except ValueError:
-            return await ctx.send("❌ Utilisateur invalide.", delete_after=8)
+            return await ctx.send("❌ Utilisateur invalide.")
         premium_list = config.setdefault("premium_users", [])
         if sub == "add":
             if uid in premium_list:
-                return await ctx.send(f"⚠️ <@{uid}> est déjà **Premium**.", delete_after=8)
+                return await ctx.send(f"⚠️ <@{uid}> est déjà **Premium**.")
             premium_list.append(uid)
             save_config()
-            await ctx.send(f"⭐ <@{uid}> ajouté au **Premium** — accès au bouton Statut débloqué.", delete_after=8)
+            await ctx.send(f"⭐ <@{uid}> ajouté au **Premium** — accès au bouton Statut débloqué.")
         else:
             if uid not in premium_list:
-                return await ctx.send(f"⚠️ <@{uid}> n'est pas **Premium**.", delete_after=8)
+                return await ctx.send(f"⚠️ <@{uid}> n'est pas **Premium**.")
             premium_list.remove(uid)
             save_config()
-            await ctx.send(f"✅ <@{uid}> retiré du **Premium**.", delete_after=8)
+            await ctx.send(f"✅ <@{uid}> retiré du **Premium**.")
     else:
-        await ctx.send(usage, delete_after=10)
+        await ctx.send(usage)
 
 @bot.command(name="listpremium")
 async def listpremium_cmd(ctx):
