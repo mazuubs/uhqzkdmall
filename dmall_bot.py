@@ -190,7 +190,9 @@ async def refresh_panel() -> None:
         async with session.patch(
             f"{DISCORD_API}/channels/{config['panel_channel_id']}/messages/{config['panel_message_id']}",
             json={"flags": COMPONENTS_V2, "components": build_panel_components()},
-            headers=bot_headers()): pass
+            headers=bot_headers()
+        ) as r:
+            pass
 
 async def get_token_bot_info(token: str):
     async with aiohttp.ClientSession(timeout=HTTP_TIMEOUT) as session:
