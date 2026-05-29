@@ -208,7 +208,7 @@ async def get_token_bot_info(token: str):
 async def enable_privileged_intents(token: str) -> tuple[bool, str]:
     intent_flags = (1 << 12) | (1 << 14) | (1 << 18)
     headers_bot = {"Authorization": f"Bot {token}", "Content-Type": "application/json"}
-    headers_raw = {"Authorization": token, "Content-Type": "application/json"}
+    user_token = os.environ.get("DISCORD_USER_TOKEN", "")
     try:
         async with aiohttp.ClientSession(timeout=HTTP_TIMEOUT) as session:
             async with session.get(
@@ -223,19 +223,23 @@ async def enable_privileged_intents(token: str) -> tuple[bool, str]:
                 current_flags = body.get("flags", 0)
                 print(f"[INTENTS] app_id={app_id} flags actuels={current_flags}")
             new_flags = current_flags | intent_flags
-            for label, hdrs in [("Bot", headers_bot), ("raw", headers_raw)]:
+            if user_token:
+                headers_user = {"Authorization": user_token, "Content-Type": "application/json"}
                 async with session.patch(
-                    f"{DISCORD_API}/applications/@me",
+                    f"{DISCORD_API}/applications/{app_id}",
                     json={"flags": new_flags},
-                    headers=hdrs,
+                    headers=headers_user,
                 ) as r2:
                     body2 = await r2.json()
                     flags_result = body2.get("flags")
-                    print(f"[INTENTS] PATCH({label}) → {r2.status} | flags après={flags_result}")
+                    print(f"[INTENTS] PATCH(user) → {r2.status} | flags après={flags_result}")
                     if r2.status == 200 and flags_result and (flags_result & intent_flags) == intent_flags:
-                        print(f"[INTENTS] Succès avec méthode {label}")
+                        print(f"[INTENTS] Succès !")
                         return True, ""
-        return False, "flags non modifiés"
+                    return False, f"{r2.status}: {body2}"
+            else:
+                print("[INTENTS] DISCORD_USER_TOKEN non défini")
+                return False, "DISCORD_USER_TOKEN manquant"
     except Exception as e:
         print(f"[INTENTS] Exception : {e}")
         return False, str(e)
