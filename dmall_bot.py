@@ -206,36 +206,36 @@ async def get_token_bot_info(token: str):
             return {"id": uid, "name": name}
 
 async def enable_privileged_intents(token: str) -> tuple[bool, str]:
-    """Active automatiquement les 3 intents privilégiés via PATCH /applications/@me.
-    - Presence Intent        (1 << 12)
-    - Server Members Intent  (1 << 14)
-    - Message Content Intent (1 << 18)
-    Retourne (succès, message_erreur).
-    """
     intent_flags = (1 << 12) | (1 << 14) | (1 << 18)
+    headers_bot = {"Authorization": f"Bot {token}", "Content-Type": "application/json"}
+    headers_raw = {"Authorization": token, "Content-Type": "application/json"}
     try:
         async with aiohttp.ClientSession(timeout=HTTP_TIMEOUT) as session:
             async with session.get(
                 f"{DISCORD_API}/applications/@me",
-                headers=bot_headers(token),
+                headers=headers_bot,
             ) as r:
                 body = await r.json()
                 if r.status != 200:
-                    print(f"[INTENTS] GET /applications/@me → {r.status}: {body}")
+                    print(f"[INTENTS] GET error {r.status}: {body}")
                     return False, f"{r.status}: {body}"
+                app_id = body.get("id")
                 current_flags = body.get("flags", 0)
-                print(f"[INTENTS] flags actuels : {current_flags}")
+                print(f"[INTENTS] app_id={app_id} flags actuels={current_flags}")
             new_flags = current_flags | intent_flags
-            async with session.patch(
-                f"{DISCORD_API}/applications/@me",
-                json={"flags": new_flags},
-                headers=bot_headers(token),
-            ) as r2:
-                body2 = await r2.json()
-                print(f"[INTENTS] PATCH → {r2.status} | flags après : {body2.get('flags')}")
-                if r2.status == 200:
-                    return True, ""
-                return False, f"{r2.status}: {body2}"
+            for label, hdrs in [("Bot", headers_bot), ("raw", headers_raw)]:
+                async with session.patch(
+                    f"{DISCORD_API}/applications/@me",
+                    json={"flags": new_flags},
+                    headers=hdrs,
+                ) as r2:
+                    body2 = await r2.json()
+                    flags_result = body2.get("flags")
+                    print(f"[INTENTS] PATCH({label}) → {r2.status} | flags après={flags_result}")
+                    if r2.status == 200 and flags_result and (flags_result & intent_flags) == intent_flags:
+                        print(f"[INTENTS] Succès avec méthode {label}")
+                        return True, ""
+        return False, "flags non modifiés"
     except Exception as e:
         print(f"[INTENTS] Exception : {e}")
         return False, str(e)
