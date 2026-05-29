@@ -219,21 +219,25 @@ async def enable_privileged_intents(token: str) -> tuple[bool, str]:
                 f"{DISCORD_API}/applications/@me",
                 headers=bot_headers(token),
             ) as r:
+                body = await r.json()
                 if r.status != 200:
-                    err = await r.text()
-                    return False, f"GET /applications/@me → {r.status}: {err}"
-                current_flags = (await r.json()).get("flags", 0)
+                    print(f"[INTENTS] GET /applications/@me → {r.status}: {body}")
+                    return False, f"{r.status}: {body}"
+                current_flags = body.get("flags", 0)
+                print(f"[INTENTS] flags actuels : {current_flags}")
             new_flags = current_flags | intent_flags
             async with session.patch(
                 f"{DISCORD_API}/applications/@me",
                 json={"flags": new_flags},
                 headers=bot_headers(token),
             ) as r2:
+                body2 = await r2.json()
+                print(f"[INTENTS] PATCH → {r2.status} | flags après : {body2.get('flags')}")
                 if r2.status == 200:
                     return True, ""
-                err = await r2.text()
-                return False, f"PATCH /applications/@me → {r2.status}: {err}"
+                return False, f"{r2.status}: {body2}"
     except Exception as e:
+        print(f"[INTENTS] Exception : {e}")
         return False, str(e)
 
 async def send_ephemeral_components(interaction, components):
