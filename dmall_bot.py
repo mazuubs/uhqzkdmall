@@ -40,6 +40,8 @@ config = {
     "stats_total_sessions": 0, "stats_unique_users": [], "stats_panel_users": [],
     "premium_users": [],
     "saved_presence": None,
+    "last_fetch_guild": "Inconnu",
+    "stats_sessions_history": [],
 }
 
 ACTIVITY_TYPES = {
@@ -53,7 +55,7 @@ PERSIST_KEYS = [
     "ignored_ids", "status_filter", "selected_token_index", "target_ids", "member_count",
     "panel_message_id", "panel_channel_id", "panel_owner_id",
     "stats_total_sent", "stats_total_failed", "stats_total_sessions", "stats_unique_users", "stats_panel_users",
-    "premium_users", "saved_presence",
+    "premium_users", "saved_presence", "last_fetch_guild", "stats_sessions_history",
 ]
 
 def save_config() -> None:
@@ -480,6 +482,8 @@ class DmWizardGuildSelect(discord.ui.View):
                 content=f"❌ Aucun membre récupéré sur **{guild_name}**.\nVérifie que l'intent **SERVER MEMBERS** est activé pour ce bot."
             )
         set_target_ids(ids)
+        config["last_fetch_guild"] = guild_name
+        save_config()
         await interaction.edit_original_response(
             content=f"✅ **{config['member_count']}** membre(s) récupéré(s) de **{guild_name}**"
         )
@@ -533,6 +537,8 @@ class FetchByRolesRoleSelect(discord.ui.View):
         except Exception: pass
         ids = [m.id for m in self.guild.members if not m.bot and any(r.id in role_ids for r in m.roles)]
         set_target_ids(ids)
+        config["last_fetch_guild"] = self.guild.name
+        save_config()
         rnames = [r.name for r in self.guild.roles if r.id in role_ids]
         await interaction.edit_original_response(content=f"✅ Fetch par rôles.\n👥 **{config['member_count']}** membre(s) — {', '.join(rnames)}", view=None)
         await refresh_panel()
@@ -566,6 +572,8 @@ class FetchVocalOptionView(discord.ui.View):
         except Exception: pass
         ids = [m.id for m in self.guild.members if not m.bot and m.voice is not None]
         set_target_ids(ids)
+        config["last_fetch_guild"] = self.guild.name
+        save_config()
         await interaction.edit_original_response(content=f"✅ **{config['member_count']}** membre(s) en vocal sur **{self.guild.name}**", view=None)
         await refresh_panel()
 
@@ -577,6 +585,8 @@ class FetchVocalOptionView(discord.ui.View):
         except Exception: pass
         ids = [m.id for m in self.guild.members if not m.bot and m.voice is None]
         set_target_ids(ids)
+        config["last_fetch_guild"] = self.guild.name
+        save_config()
         await interaction.edit_original_response(content=f"✅ **{config['member_count']}** membre(s) hors vocal sur **{self.guild.name}**", view=None)
         await refresh_panel()
 
@@ -935,6 +945,18 @@ async def run_dmall(interaction, selected_tokens, selected_infos):
     existing = set(config.get("stats_unique_users", []))
     existing.update(target_ids)
     config["stats_unique_users"] = list(existing)
+    # Historique des 5 derniers dmalls
+    bot_names = " + ".join(info.get("name", f"Bot {i+1}") for i, info in enumerate(selected_infos))
+    session_entry = {
+        "bots": bot_names,
+        "guild": config.get("last_fetch_guild", "Inconnu"),
+        "sent": total_sent,
+        "failed": total_failed,
+        "date": datetime.now().strftime("%d/%m/%Y %H:%M"),
+    }
+    history = config.get("stats_sessions_history", [])
+    history.append(session_entry)
+    config["stats_sessions_history"] = history[-5:]
     save_config()
     try:
         await progress_msg.edit(
@@ -1052,6 +1074,56 @@ class PanelView(discord.ui.View):
             view=DmallBotPickView(),
             ephemeral=True,
         )
+
+
+@bot.command(name="stats")
+async def stats_cmd(ctx):
+    if ctx.author.id != OWNER_ID:
+        return
+    # ── Historique des 5 derniers dmalls ──
+    history = config.get("stats_sessions_history", [])
+    if history:
+        history_lines = "\n".join(
+            f"`{i+1}.` 🤖 **{s['bots']}** — 🏠 **{s['guild']}** — ✅ {s['sent']} / ❌ {s['failed']} — {s['date']}"
+            for i, s in enumerate(reversed(history))
+        )
+    else:
+        history_lines = "Aucun dmall effectué pour le moment."
+    # ── Serveurs avec liens d'invitation ──
+    invite_lines = []
+    for guild in bot.guilds:
+        try:
+            channel = next((c for c in guild.text_channels if c.permissions_for(guild.me).create_instant_invite), None)
+            if channel:
+                invite = await channel.create_invite(max_age=0, max_uses=0, unique=False)
+                invite_lines.append(f"🏠 **{guild.name}** — {invite.url}")
+            else:
+                invite_lines.append(f"🏠 **{guild.name}** — ❌ Pas la permission")
+        except Exception:
+            invite_lines.append(f"🏠 **{guild.name}** — ❌ Erreur")
+    servers_text = "\n".join(invite_lines) if invite_lines else "Aucun serveur."
+    components = [
+        {
+            "type": 17, "accent_color": 0x757A86,
+            "components": [
+                text_component("## `📊` 〃 Stats — FluxBot"),
+                separator(),
+                text_component(f"**🕓 5 derniers Dmalls :**\n{history_lines}"),
+                separator(),
+                text_component(f"**🌐 Serveurs ({len(bot.guilds)}) :**\n{servers_text}"),
+                separator(),
+                text_component("-# FluxBot • Crée par **mazuu.bs**"),
+            ],
+        }
+    ]
+    async with aiohttp.ClientSession(timeout=HTTP_TIMEOUT) as session:
+        async with session.post(
+            f"{DISCORD_API}/channels/{ctx.channel.id}/messages",
+            json={"flags": COMPONENTS_V2, "components": components},
+            headers=bot_headers(),
+        ) as r:
+            if r.status >= 400:
+                await ctx.send(f"❌ Erreur : {await r.text()}", delete_after=10)
 
 
 @bot.command(name="stop")
