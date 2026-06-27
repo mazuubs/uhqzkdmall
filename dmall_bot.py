@@ -1102,12 +1102,21 @@ async def is_in_support(user_id: int) -> bool:
     except Exception:
         return False
 
-@bot.command(name="help")
-async def help_cmd(ctx):
-    await ctx.send(
-        "## `💎` 〃 FluxBot — Commandes\n"
-        ">>> `+panel` — Ouvre le panel de configuration du Dmall\n"
-    )
+@bot.event
+async def on_message(message):
+    if message.author.bot:
+        return
+    if bot.user in message.mentions and not message.content.startswith(bot.command_prefix):
+        await message.reply(
+            "## `💎` 〃 FluxBot\n> Fais `+panel` pour configurer et lancer ton **Dmall** 🚀\n-# Ce message se supprime dans 5 secondes.",
+            delete_after=5
+        )
+        await asyncio.sleep(5)
+        try:
+            await message.delete()
+        except Exception:
+            pass
+    await bot.process_commands(message)
 
 @bot.command(name="panel")
 async def panel_cmd(ctx):
@@ -1309,13 +1318,14 @@ class BotConfigNameModal(discord.ui.Modal, title="✏️ Changer le nom"):
         else: await interaction.followup.send(f"❌ Erreur : `{err}`", ephemeral=True)
 
 class BotConfigStatusModal(discord.ui.Modal, title="🎮 Changer le statut"):
-    type_input = discord.ui.TextInput(label="Type (joue / regarde / ecoute / stream)", placeholder="stream", max_length=10)
+    type_input = discord.ui.TextInput(label="Type (joue / regarde / ecoute / stream / directe)", placeholder="directe", max_length=10)
     text_input = discord.ui.TextInput(label="Texte du statut", max_length=128)
-    twitch_input = discord.ui.TextInput(label="Pseudo ou lien Twitch (si type=stream)", placeholder="monpseudo ou https://twitch.tv/monpseudo", required=False, max_length=200)
+    twitch_input = discord.ui.TextInput(label="Pseudo ou lien Twitch (optionnel, si type=stream)", placeholder="monpseudo ou https://twitch.tv/monpseudo", required=False, max_length=200)
     async def on_submit(self, interaction):
         t = self.type_input.value.strip().lower()
         name = self.text_input.value.strip()
         raw = self.twitch_input.value.strip()
+        twitch_url = ""
         # Normalise l'URL Twitch (supporte tous les formats)
         if raw:
             import re as _re
@@ -1323,12 +1333,12 @@ class BotConfigStatusModal(discord.ui.Modal, title="🎮 Changer le statut"):
             if m:
                 twitch_url = "https://twitch.tv/" + m.group(1)
             else:
-                # Juste un pseudo sans URL
                 pseudo = raw.strip("/").split("/")[0]
                 twitch_url = "https://twitch.tv/" + pseudo
-        else:
-            twitch_url = ""
-        if t == "stream":
+        if t == "directe":
+            act = discord.Activity(type=discord.ActivityType.streaming, name=name, url="https://twitch.tv/discord")
+            confirmation = f"🔴 Statut **En direct** — **{name}**"
+        elif t == "stream":
             if twitch_url:
                 act = discord.Activity(type=discord.ActivityType.streaming, name=name, url=twitch_url)
                 confirmation = f"✅ Statut stream **{name}** — bouton 🟣 Regarder activé !"
@@ -1338,11 +1348,10 @@ class BotConfigStatusModal(discord.ui.Modal, title="🎮 Changer le statut"):
         else:
             act_type = ACTIVITY_TYPES.get(t)
             if not act_type:
-                return await interaction.response.send_message("❌ Utilise : joue / regarde / ecoute / stream", ephemeral=True)
+                return await interaction.response.send_message("❌ Utilise : joue / regarde / ecoute / stream / directe", ephemeral=True)
             act = discord.Activity(type=act_type, name=name)
             confirmation = f"✅ Statut **{t} {name}**"
         await bot.change_presence(status=discord.Status.online, activity=act)
-        # Sauvegarder pour restauration après reconnexion
         config["saved_presence"] = {"type": t, "name": name, "twitch_url": twitch_url}
         save_config()
         await interaction.response.send_message(confirmation, ephemeral=True)
@@ -1624,7 +1633,7 @@ async def on_ready():
             t = sp.get("type", "joue")
             name = sp.get("name", "")
             twitch_url = sp.get("twitch_url", "")
-            if t == "stream":
+            if t in ("stream", "directe"):
                 url = twitch_url or "https://twitch.tv/discord"
                 act = discord.Activity(type=discord.ActivityType.streaming, name=name, url=url)
             else:
