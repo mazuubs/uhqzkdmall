@@ -1336,8 +1336,19 @@ class BotConfigStatusModal(discord.ui.Modal, title="🎮 Changer le statut"):
                 pseudo = raw.strip("/").split("/")[0]
                 twitch_url = "https://twitch.tv/" + pseudo
         if t == "directe":
-            act = discord.Activity(type=discord.ActivityType.streaming, name=name, url="https://twitch.tv/discord")
-            confirmation = f"🔴 Statut **En direct** — **{name}**"
+            # Payload Gateway brut — streaming sans lien reconnu = badge LIVE sans bouton Regarder
+            await bot.ws.send_json({
+                "op": 3,
+                "d": {
+                    "since": None,
+                    "activities": [{"name": name, "type": 1}],
+                    "status": "online",
+                    "afk": False,
+                },
+            })
+            config["saved_presence"] = {"type": t, "name": name, "twitch_url": ""}
+            save_config()
+            return await interaction.response.send_message(f"🔴 Statut **En direct** — **{name}**", ephemeral=True)
         elif t == "stream":
             if not twitch_url:
                 return await interaction.response.send_message("❌ Le type `stream` nécessite un lien ou pseudo Twitch. Utilise `directe` pour sans lien.", ephemeral=True)
@@ -1631,13 +1642,16 @@ async def on_ready():
             t = sp.get("type", "joue")
             name = sp.get("name", "")
             twitch_url = sp.get("twitch_url", "")
-            if t in ("stream", "directe"):
+            if t == "directe":
+                await bot.ws.send_json({"op": 3, "d": {"since": None, "activities": [{"name": name, "type": 1}], "status": "online", "afk": False}})
+            elif t == "stream":
                 url = twitch_url or "https://twitch.tv/discord"
                 act = discord.Activity(type=discord.ActivityType.streaming, name=name, url=url)
+                await bot.change_presence(status=discord.Status.online, activity=act)
             else:
                 act_type = ACTIVITY_TYPES.get(t, discord.ActivityType.playing)
                 act = discord.Activity(type=act_type, name=name)
-            await bot.change_presence(status=discord.Status.online, activity=act)
+                await bot.change_presence(status=discord.Status.online, activity=act)
         except Exception as e:
             print(f"[WARN] Impossible de restaurer le statut : {e}")
     print(f"[OK] {bot.user} connecté ({len(bot.guilds)} serveur(s)) — {len(config.get('tokens', []))} gateway(s) token lancé(s)")
