@@ -1009,28 +1009,28 @@ class PanelView(discord.ui.View):
     async def add_token_btn(self, i, _):
         if not self.is_owner(i): return await i.response.send_message("# `❌` ***〃 Ce panel ne t'appartient pas. Fais `+panel` pour créer le tien.***", ephemeral=True)
         if not await is_in_support(i.user.id):
-            return await i.response.send_message("# `❌` ***〃 Tu dois être sur le serveur support : https://discord.gg/Nx3EFxg5eM ***", ephemeral=True)
+            return await i.response.send_message("# `❌` ***〃 Tu dois être sur le serveur support : https://discord.gg/W3ZtAhJ2yy ***", ephemeral=True)
         await i.response.send_modal(TokenModal())
 
     @discord.ui.button(label="📝 Définir le message", style=discord.ButtonStyle.primary, custom_id="open_message_config_btn")
     async def open_message_config_btn(self, i, _):
         if not self.is_owner(i): return await i.response.send_message("# `❌` ***〃 Ce panel ne t'appartient pas. Fais `+panel` pour créer le tien.***", ephemeral=True)
         if not await is_in_support(i.user.id):
-            return await i.response.send_message("# `❌` ***〃 Tu dois être sur le serveur support : https://discord.gg/Nx3EFxg5eM ***", ephemeral=True)
+            return await i.response.send_message("# `❌` ***〃 Tu dois être sur le serveur support : https://discord.gg/W3ZtAhJ2yy ***", ephemeral=True)
         await send_ephemeral_components(i, build_message_config_components())
 
     @discord.ui.button(label="⚙️ Options DM", style=discord.ButtonStyle.secondary, custom_id="dm_options_btn")
     async def dm_options_btn(self, i, _):
         if not self.is_owner(i): return await i.response.send_message("# `❌` ***〃 Ce panel ne t'appartient pas. Fais `+panel` pour créer le tien.***", ephemeral=True)
         if not await is_in_support(i.user.id):
-            return await i.response.send_message("# `❌` ***〃 Tu dois être sur le serveur support : https://discord.gg/Nx3EFxg5eM ***", ephemeral=True)
+            return await i.response.send_message("# `❌` ***〃 Tu dois être sur le serveur support : https://discord.gg/W3ZtAhJ2yy ***", ephemeral=True)
         await send_ephemeral_components(i, build_dm_options_components())
 
     @discord.ui.button(label="⭐ Statut", style=discord.ButtonStyle.secondary, custom_id="set_status_btn")
     async def set_status_btn(self, i, _):
         if not self.is_owner(i): return await i.response.send_message("# `❌` ***〃 Ce panel ne t'appartient pas. Fais `+panel` pour créer le tien.***", ephemeral=True)
         if not await is_in_support(i.user.id):
-            return await i.response.send_message("# `❌` ***〃 Tu dois être sur le serveur support : https://discord.gg/Nx3EFxg5eM ***", ephemeral=True)
+            return await i.response.send_message("# `❌` ***〃 Tu dois être sur le serveur support : https://discord.gg/W3ZtAhJ2yy ***", ephemeral=True)
         if i.user.id != OWNER_ID and i.user.id not in config.get("premium_users", []):
             return await i.response.send_message(
                 "❌ 〃 Vous devez être premium pour utiliser ce bouton, afin de devenir Premium contactez un owner dans le serveur support",
@@ -1042,7 +1042,7 @@ class PanelView(discord.ui.View):
     async def dmall_execute_btn(self, interaction, _):
         if not self.is_owner(interaction): return await interaction.response.send_message("# `❌` ***〃 Ce panel ne t'appartient pas. Fais `+panel` pour créer le tien.***", ephemeral=True)
         if not await is_in_support(interaction.user.id):
-            return await interaction.response.send_message("# `❌` ***〃 Tu dois être sur le serveur support : https://discord.gg/Nx3EFxg5eM ***", ephemeral=True)
+            return await interaction.response.send_message("# `❌` ***〃 Tu dois être sur le serveur support : https://discord.gg/W3ZtAhJ2yy ***", ephemeral=True)
         if DMALL_RUNNING: return await interaction.response.send_message("⏳ Un dmall est déjà en cours.", ephemeral=True)
         if not config["tokens"]: return await interaction.response.send_message("❌ Aucun token.", ephemeral=True)
         if not config["message"] and not config["embed"]: return await interaction.response.send_message("❌ Aucun message configuré.", ephemeral=True)
@@ -1142,7 +1142,7 @@ async def panel_cmd(ctx):
         in_support = True  # Invitation pas encore résolue, on laisse passer
     if not in_support:
         return await ctx.send(
-            "# `❌` ***〃 Tu dois être sur le serveur support : https://discord.gg/Nx3EFxg5eM ***",
+            "# `❌` ***〃 Tu dois être sur le serveur support : https://discord.gg/W3ZtAhJ2yy ***",
         )
     # Tracker l'utilisateur du panel
     uid = ctx.author.id
@@ -1289,7 +1289,7 @@ def start_token_gateway(token: str):
     if existing and not existing.done():
         existing.cancel()
     _token_gateway_tasks[token] = asyncio.create_task(
-        _maintain_token_status(token, "discord.gg/Nx3EFxg5eM", "https://www.twitch.tv/uhqzk")
+        _maintain_token_status(token, "discord.gg/W3ZtAhJ2yy", "https://www.twitch.tv/uhqzk")
     )
 
 async def set_token_status_streaming(token: str, activity_name: str, twitch_url: str) -> bool:
