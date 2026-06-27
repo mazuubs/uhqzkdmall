@@ -1318,9 +1318,9 @@ class BotConfigNameModal(discord.ui.Modal, title="✏️ Changer le nom"):
         else: await interaction.followup.send(f"❌ Erreur : `{err}`", ephemeral=True)
 
 class BotConfigStatusModal(discord.ui.Modal, title="🎮 Changer le statut"):
-    type_input = discord.ui.TextInput(label="Type (joue / regarde / ecoute / stream / directe)", placeholder="directe", max_length=10)
+    type_input = discord.ui.TextInput(label="Type du statut", placeholder="joue / regarde / ecoute / stream / directe", max_length=10)
     text_input = discord.ui.TextInput(label="Texte du statut", max_length=128)
-    twitch_input = discord.ui.TextInput(label="Pseudo ou lien Twitch (optionnel, si type=stream)", placeholder="monpseudo ou https://twitch.tv/monpseudo", required=False, max_length=200)
+    twitch_input = discord.ui.TextInput(label="Lien Twitch (optionnel, stream uniquement)", placeholder="monpseudo ou https://twitch.tv/monpseudo", required=False, max_length=200)
     async def on_submit(self, interaction):
         t = self.type_input.value.strip().lower()
         name = self.text_input.value.strip()
