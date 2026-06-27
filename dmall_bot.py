@@ -114,7 +114,7 @@ def build_panel_components() -> list:
     message_text = short_text(config["message"], "Aucun message texte défini")
     embed_text = "Embed configuré" if config["embed"] else "Aucun embed défini"
     return [
-        text_component("## > **Support** : https://discord.gg/fy3Sgy6hGS"),
+        text_component("## > **Support** : https://discord.gg/W3ZtAhJ2yy"),
         {
         "type": 17, "accent_color": 0x757A86,
         "components": [
