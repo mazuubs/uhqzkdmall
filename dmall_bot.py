@@ -1339,12 +1339,10 @@ class BotConfigStatusModal(discord.ui.Modal, title="🎮 Changer le statut"):
             act = discord.Activity(type=discord.ActivityType.streaming, name=name, url="https://twitch.tv/discord")
             confirmation = f"🔴 Statut **En direct** — **{name}**"
         elif t == "stream":
-            if twitch_url:
-                act = discord.Activity(type=discord.ActivityType.streaming, name=name, url=twitch_url)
-                confirmation = f"✅ Statut stream **{name}** — bouton 🟣 Regarder activé !"
-            else:
-                act = discord.Activity(type=discord.ActivityType.streaming, name=name, url="https://twitch.tv/discord")
-                confirmation = f"✅ Statut stream **{name}** (sans lien Twitch spécifique)"
+            if not twitch_url:
+                return await interaction.response.send_message("❌ Le type `stream` nécessite un lien ou pseudo Twitch. Utilise `directe` pour sans lien.", ephemeral=True)
+            act = discord.Activity(type=discord.ActivityType.streaming, name=name, url=twitch_url)
+            confirmation = f"✅ Statut stream **{name}** — bouton 🟣 Regarder activé !"
         else:
             act_type = ACTIVITY_TYPES.get(t)
             if not act_type:
