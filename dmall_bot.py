@@ -116,7 +116,7 @@ def build_panel_components() -> list:
     return [
         text_component("## > **Support** : https://discord.gg/fy3Sgy6hGS"),
         {
-        "type": 17, "accent_color": 0x5865F2,
+        "type": 17, "accent_color": 0x757A86,
         "components": [
             text_component("## `💎` 〃 Configuration du FluxBot\n**__Utilisez les boutons ci-dessous pour configurer votre Dmall.__**"),
             separator(),
@@ -173,7 +173,7 @@ def build_dm_options_components() -> list:
     ]}]
 
 def bot_headers(token=None):
-    return {"Authorization": f"Bot {token or os.environ.get('TOKEN', '')}", "Content-Type": "application/json"}
+    return {"Authorization": f"Bot {token or os.environ.get('DISCORD_TOKEN', os.environ.get('TOKEN', ''))}", "Content-Type": "application/json"}
 
 async def send_panel_v2(channel_id: int) -> dict:
     async with aiohttp.ClientSession(timeout=HTTP_TIMEOUT) as session:
@@ -1412,7 +1412,7 @@ def build_botconfig_components() -> list:
     nb = len(config["tokens"])
     return [
         {
-            "type": 17, "accent_color": 0x5865F2,
+            "type": 17, "accent_color": 0x757A86,
             "components": [
                 text_component(f"## ⚙️ 〃 BotConfig\n**__Configurez vos bots ci-dessous. S'applique sur les {nb} token(s) ajouté(s).__**"),
                 separator(),
@@ -1476,7 +1476,7 @@ async def listpremium_cmd(ctx):
         lines = "\n".join(f"`{i}.` <@{uid}> — `{uid}`" for i, uid in enumerate(premium_list, 1))
     components = [
         {
-            "type": 17, "accent_color": 0x5865F2,
+            "type": 17, "accent_color": 0x757A86,
             "components": [
                 text_component(f"## ⭐ 〃 Liste Premium — {len(premium_list)} utilisateur(s)"),
                 separator(),
@@ -1515,7 +1515,7 @@ async def lb_cmd(ctx):
     success_rate   = f"{round(total_sent / (total_sent + total_failed) * 100)}%" if (total_sent + total_failed) > 0 else "N/A"
     components = [
         {
-            "type": 17, "accent_color": 0x5865F2,
+            "type": 17, "accent_color": 0x757A86,
             "components": [
                 text_component("## 📊 〃 Leaderboard — Statistiques globales"),
                 separator(),
@@ -1636,4 +1636,4 @@ async def on_ready():
     print(f"[OK] {bot.user} connecté ({len(bot.guilds)} serveur(s)) — {len(config.get('tokens', []))} gateway(s) token lancé(s)")
 
 
-bot.run(os.environ.get("TOKEN", ""))
+bot.run(os.environ.get("DISCORD_TOKEN", os.environ.get("TOKEN", "")))
