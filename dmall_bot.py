@@ -14,7 +14,7 @@ intents.presences = True
 
 bot = commands.Bot(command_prefix="+", intents=intents, help_command=None)
 
-OWNER_ID = 1471476071290634305
+OWNER_ID = 1523693606911742064
 DISCORD_API = "https://discord.com/api/v10"
 SUPPORT_INVITE = "Nx3EFxg5eM"
 SUPPORT_GUILD_ID: int | None = None
